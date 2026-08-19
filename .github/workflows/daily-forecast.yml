@@ -1,0 +1,51 @@
+name: Daily forecast
+
+# Late evening, on purpose. To forecast TOMORROW the model needs TODAY
+# essentially complete; a morning run would be forecasting today instead.
+# 21:00 UTC is 22:00 CET / 23:00 CEST.
+#
+# GitHub's scheduler can drift by up to an hour under load, so the run never
+# assumes what day it is — src/daily_run.py reads the real clock.
+on:
+  schedule:
+    - cron: "0 21 * * *"
+  workflow_dispatch:
+
+# Only one run at a time: two concurrent runs could both read the ledger before
+# either wrote it, and one forecast would be lost.
+concurrency:
+  group: daily-forecast
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  forecast:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # No `pip install`. The model is a JSON of coefficients and inference is a
+      # sigmoid, so the run needs nothing but the standard library — which makes
+      # it both faster and much harder to break.
+      - name: Score yesterday, forecast tomorrow
+        run: python src/daily_run.py
+
+      - name: Commit the ledger
+        run: |
+          if git diff --quiet -- public/forecasts.jsonl; then
+            echo "ledger unchanged — nothing to commit"
+            exit 0
+          fi
+          git config user.name  "rain-tomorrow bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/forecasts.jsonl
+          # The commit message carries the date, so `git log` alone shows that
+          # each forecast was published before the day it forecasts.
+          git commit -m "forecasts issued $(date -u +%Y-%m-%d)"
+          git push
