@@ -316,6 +316,23 @@ def write_artifact(result: dict) -> Path:
         "monthly_climatology": {str(k): v for k, v in result["baselines"]["monthly"].items()},
         "base_rate": result["baselines"]["base_rate"],
         "test_metrics": {k: v for k, v in lr_row.items() if k != "name"},
+        # every forecaster scored on the same test set, so the published page can
+        # show the ladder without having to re-derive the baselines itself
+        "test_comparison": [
+            {
+                "name": r["name"],
+                "brier": r["brier"],
+                "bss": r["bss"],
+                "POD": r["POD"],
+                "FAR": r["FAR"],
+                "CSI": r["CSI"],
+                "hit_rate": r["hit_rate"],
+                "roc_auc": r.get("roc_auc"),
+                "pr_auc": r.get("pr_auc"),
+            }
+            for r in result["rows"]
+        ],
+        "reliability": result["reliability"],
         "brier_decomposition": result["decomposition"],
         "threshold_sweep": result["threshold_sweep"],
         "stop_criterion": {

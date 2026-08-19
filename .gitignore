@@ -5,3 +5,7 @@ __pycache__/
 venv/
 # local CA certificates for TLS-inspecting environments
 certs/
+
+# render check scratch
+tests/node_modules/
+tests/package*.json

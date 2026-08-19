@@ -79,6 +79,35 @@ from dry ones). Reporting only the total hides which of the two is driving a dif
 
 ---
 
+## Which model ships, and why it is not the best one
+
+| location | logistic regression | gradient boosting | difference |
+|---|---|---|---|
+| Bassano del Grappa | +0.205 | +0.215 | +0.010 |
+| Conegliano | +0.210 | +0.212 | +0.002 |
+| Vicenza | +0.216 | +0.238 | +0.022 |
+| Padova | +0.221 | +0.257 | +0.036 |
+| Venezia | +0.210 | +0.197 | -0.013 |
+
+**Gradient boosting wins at 4 of the 5 locations**, by an average of
++0.011 Brier Skill Score. The logistic regression is what ships anyway, and the
+reasons are engineering rather than accuracy:
+
+- **It is 17 numbers.** The artefact is ~9 KB, so the model can be re-implemented in
+  twenty lines of JavaScript and verified in the reader's browser. A tree ensemble cannot.
+- **The coefficients are the finding.** The physical reading below — pressure, cloud, the
+  Adriatic easterly, and how they shift along the gradient — is only available because the
+  model is linear.
+- **The daily run needs no dependencies.** No `pip install` in the Action means fewer ways
+  for the record to break.
+
+The margin is small, which is itself the point: on strongly autocorrelated daily data the
+extra capacity buys very little. And the comparison is, if anything, unfair *to* boosting —
+the logistic regression's regularisation was tuned on the validation year while the
+boosting hyper-parameters were left at fixed values. Tuned, it would probably win by more.
+
+---
+
 ## What the model learned
 
 Standardised coefficients, so they are comparable with each other and across locations.

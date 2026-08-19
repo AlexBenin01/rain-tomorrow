@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Will it rain tomorrow? — a forecast you can audit</title>
+<meta name="description" content="A 17-coefficient statistical model forecasting five towns in the Veneto every evening, scored in public against what actually happened.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🌧</text></svg>">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="masthead">
+  <div class="wrap">
+    <button id="lang-toggle" class="lang-toggle" type="button">Italiano</button>
+    <h1 data-i18n="site.title">Will it rain tomorrow?</h1>
+    <p class="tagline" data-i18n="site.tagline"></p>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <section id="live">
+    <h2><span data-i18n="live.heading">Tomorrow</span>
+      <span id="live-date" class="subtle"></span></h2>
+    <p id="live-stale" class="warning" hidden></p>
+    <div id="live-body"></div>
+    <p id="live-updated" class="muted small"></p>
+    <p class="note" data-i18n="live.omNote"></p>
+  </section>
+
+  <section id="record">
+    <h2 data-i18n="record.heading">The public record</h2>
+    <p data-i18n="record.intro"></p>
+    <dl id="record-stats" class="tiles"></dl>
+    <div id="record-body"></div>
+  </section>
+
+  <section id="baselines">
+    <h2 data-i18n="baseline.heading">What counts as good</h2>
+    <p data-i18n="baseline.intro"></p>
+    <div id="baseline-chart" class="chart-box"></div>
+    <p class="muted small"><span id="baseline-where"></span></p>
+    <p class="note" data-i18n="baseline.punchline"></p>
+  </section>
+
+  <section id="reliability">
+    <h2 data-i18n="reliability.heading">Does 70% mean 70%?</h2>
+    <p data-i18n="reliability.intro"></p>
+    <div id="reliability-chart" class="chart-box narrow"></div>
+  </section>
+
+  <section id="stationarity">
+    <h2 data-i18n="stationarity.heading">Why 8 years, not 29</h2>
+    <p data-i18n="stationarity.intro"></p>
+    <div class="table-scroll"><table id="stationarity-table"></table></div>
+    <p data-i18n="stationarity.decomposition"></p>
+    <div class="table-scroll"><table id="decomposition-table" class="compact"></table></div>
+    <p class="note" data-i18n="stationarity.caveat"></p>
+  </section>
+
+  <section id="physics">
+    <h2 data-i18n="physics.heading">Nobody told it about weather</h2>
+    <p data-i18n="physics.intro"></p>
+    <div class="table-scroll"><table id="physics-table" class="compact"></table></div>
+    <p class="note" data-i18n="physics.punchline"></p>
+    <p data-i18n="physics.gradient"></p>
+  </section>
+
+  <section id="limits">
+    <h2 data-i18n="limits.heading">What this is not</h2>
+    <p data-i18n="limits.intro"></p>
+    <ul id="limits-list"></ul>
+  </section>
+
+  <p id="self-check" class="self-check"></p>
+
+</main>
+
+<footer class="wrap">
+  <p>
+    <a href="https://github.com/Alessandro001/rain-tomorrow" data-i18n="footer.repo">Source and data</a> ·
+    <a href="https://github.com/Alessandro001/rain-tomorrow/blob/main/reports/REPORT.md" data-i18n="footer.report">Verification report</a> ·
+    <a href="https://github.com/Alessandro001/rain-tomorrow/blob/main/reports/METHOD_NOTES.md" data-i18n="footer.method">Method notes</a>
+  </p>
+  <p class="muted small" data-i18n="site.dataNote"></p>
+</footer>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
