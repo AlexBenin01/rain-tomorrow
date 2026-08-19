@@ -36,15 +36,20 @@ jobs:
       - name: Score yesterday, forecast tomorrow
         run: python src/daily_run.py
 
-      - name: Commit the ledger
+      # The page reads a prebuilt bundle, so the ledger growing is not enough:
+      # without this the record fills up while the published page stays frozen.
+      - name: Rebuild the page bundle
+        run: python src/build_site.py
+
+      - name: Commit the ledger and the bundle
         run: |
-          if git diff --quiet -- public/forecasts.jsonl; then
-            echo "ledger unchanged — nothing to commit"
+          if git diff --quiet -- public/forecasts.jsonl docs/data/bundle.json; then
+            echo "nothing changed — nothing to commit"
             exit 0
           fi
           git config user.name  "rain-tomorrow bot"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add public/forecasts.jsonl
+          git add public/forecasts.jsonl docs/data/bundle.json
           # The commit message carries the date, so `git log` alone shows that
           # each forecast was published before the day it forecasts.
           git commit -m "forecasts issued $(date -u +%Y-%m-%d)"
