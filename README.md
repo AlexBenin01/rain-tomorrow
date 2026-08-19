@@ -3,7 +3,7 @@
 A statistical rain forecast for five towns in the Veneto, **published every evening before the day
 it forecasts** and scored in public against what actually happened.
 
-**[→ Open the live page](https://alessandro001.github.io/rain-tomorrow/)**
+**[→ Open the live page](https://alexbenin01.github.io/rain-tomorrow/)**
 
 The model is a logistic regression: 17 coefficients, a 9 KB JSON file, and a sigmoid. It runs in
 your browser — the page recomputes it from the published artefact and checks it reproduces the
@@ -177,7 +177,7 @@ docs/       the published page (GitHub Pages)
 tests/      pytest, plus the DOM render check
 ```
 
-The same model also drives the weather in [AgroAgent](https://github.com/Alessandro001/agroagent),
+The same model also drives the weather in [AgroAgent](https://github.com/AlexBenin01/agroagent),
 a simulated vineyard supervised by an LLM agent, where the forecast decides whether to postpone a
 fungicide treatment. This repository is where it is trained and verified.
 
