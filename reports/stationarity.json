@@ -1,0 +1,407 @@
+[
+  {
+    "location": "bassano",
+    "name": "Bassano del Grappa",
+    "by_period": [
+      {
+        "period": "1996-2000",
+        "wet_fraction": 0.4269,
+        "mm_per_year": 1322.2
+      },
+      {
+        "period": "2001-2005",
+        "wet_fraction": 0.4168,
+        "mm_per_year": 1319.3
+      },
+      {
+        "period": "2006-2010",
+        "wet_fraction": 0.4387,
+        "mm_per_year": 1469.7
+      },
+      {
+        "period": "2011-2015",
+        "wet_fraction": 0.4387,
+        "mm_per_year": 1473.0
+      },
+      {
+        "period": "2016-2020",
+        "wet_fraction": 0.3727,
+        "mm_per_year": 1312.8
+      },
+      {
+        "period": "2021-2024",
+        "wet_fraction": 0.3005,
+        "mm_per_year": 1167.7
+      }
+    ],
+    "early_window": "1996-2005",
+    "late_window": "2016-2024",
+    "decomposition": [
+      {
+        "threshold_mm": 0.2,
+        "early": 0.5505,
+        "late": 0.4632,
+        "relative_change": -0.1586
+      },
+      {
+        "threshold_mm": 1.0,
+        "early": 0.4218,
+        "late": 0.3406,
+        "relative_change": -0.1925
+      },
+      {
+        "threshold_mm": 5.0,
+        "early": 0.199,
+        "late": 0.181,
+        "relative_change": -0.0907
+      },
+      {
+        "threshold_mm": 10.0,
+        "early": 0.107,
+        "late": 0.1101,
+        "relative_change": 0.0286
+      },
+      {
+        "threshold_mm": 20.0,
+        "early": 0.0446,
+        "late": 0.0502,
+        "relative_change": 0.1246
+      }
+    ],
+    "intensity_early": {
+      "mean_mm": 8.41,
+      "median_mm": 4.6
+    },
+    "intensity_late": {
+      "mean_mm": 9.85,
+      "median_mm": 5.6
+    },
+    "wet_fraction_full": 0.4024,
+    "wet_fraction_late": 0.3406,
+    "intensification_signature": true
+  },
+  {
+    "location": "conegliano",
+    "name": "Conegliano",
+    "by_period": [
+      {
+        "period": "1996-2000",
+        "wet_fraction": 0.4778,
+        "mm_per_year": 1449.7
+      },
+      {
+        "period": "2001-2005",
+        "wet_fraction": 0.4595,
+        "mm_per_year": 1396.7
+      },
+      {
+        "period": "2006-2010",
+        "wet_fraction": 0.4901,
+        "mm_per_year": 1540.9
+      },
+      {
+        "period": "2011-2015",
+        "wet_fraction": 0.4765,
+        "mm_per_year": 1525.2
+      },
+      {
+        "period": "2016-2020",
+        "wet_fraction": 0.3618,
+        "mm_per_year": 1329.5
+      },
+      {
+        "period": "2021-2024",
+        "wet_fraction": 0.2895,
+        "mm_per_year": 1158.0
+      }
+    ],
+    "early_window": "1996-2005",
+    "late_window": "2016-2024",
+    "decomposition": [
+      {
+        "threshold_mm": 0.2,
+        "early": 0.608,
+        "late": 0.4595,
+        "relative_change": -0.2442
+      },
+      {
+        "threshold_mm": 1.0,
+        "early": 0.4687,
+        "late": 0.3297,
+        "relative_change": -0.2965
+      },
+      {
+        "threshold_mm": 5.0,
+        "early": 0.2061,
+        "late": 0.1831,
+        "relative_change": -0.1118
+      },
+      {
+        "threshold_mm": 10.0,
+        "early": 0.1106,
+        "late": 0.1071,
+        "relative_change": -0.032
+      },
+      {
+        "threshold_mm": 20.0,
+        "early": 0.0446,
+        "late": 0.0477,
+        "relative_change": 0.0701
+      }
+    ],
+    "intensity_early": {
+      "mean_mm": 8.16,
+      "median_mm": 4.3
+    },
+    "intensity_late": {
+      "mean_mm": 10.21,
+      "median_mm": 5.8
+    },
+    "wet_fraction_full": 0.4306,
+    "wet_fraction_late": 0.3297,
+    "intensification_signature": true
+  },
+  {
+    "location": "vicenza",
+    "name": "Vicenza",
+    "by_period": [
+      {
+        "period": "1996-2000",
+        "wet_fraction": 0.3355,
+        "mm_per_year": 1037.3
+      },
+      {
+        "period": "2001-2005",
+        "wet_fraction": 0.3248,
+        "mm_per_year": 1082.3
+      },
+      {
+        "period": "2006-2010",
+        "wet_fraction": 0.3401,
+        "mm_per_year": 1182.7
+      },
+      {
+        "period": "2011-2015",
+        "wet_fraction": 0.3483,
+        "mm_per_year": 1176.7
+      },
+      {
+        "period": "2016-2020",
+        "wet_fraction": 0.3404,
+        "mm_per_year": 1127.1
+      },
+      {
+        "period": "2021-2024",
+        "wet_fraction": 0.2875,
+        "mm_per_year": 1097.8
+      }
+    ],
+    "early_window": "1996-2005",
+    "late_window": "2016-2024",
+    "decomposition": [
+      {
+        "threshold_mm": 0.2,
+        "early": 0.4552,
+        "late": 0.441,
+        "relative_change": -0.0313
+      },
+      {
+        "threshold_mm": 1.0,
+        "early": 0.3301,
+        "late": 0.3169,
+        "relative_change": -0.0401
+      },
+      {
+        "threshold_mm": 5.0,
+        "early": 0.167,
+        "late": 0.1727,
+        "relative_change": 0.0345
+      },
+      {
+        "threshold_mm": 10.0,
+        "early": 0.0909,
+        "late": 0.097,
+        "relative_change": 0.0675
+      },
+      {
+        "threshold_mm": 20.0,
+        "early": 0.0361,
+        "late": 0.0405,
+        "relative_change": 0.1194
+      }
+    ],
+    "intensity_early": {
+      "mean_mm": 8.6,
+      "median_mm": 5.0
+    },
+    "intensity_late": {
+      "mean_mm": 9.44,
+      "median_mm": 5.6
+    },
+    "wet_fraction_full": 0.3309,
+    "wet_fraction_late": 0.3169,
+    "intensification_signature": false
+  },
+  {
+    "location": "padova",
+    "name": "Padova",
+    "by_period": [
+      {
+        "period": "1996-2000",
+        "wet_fraction": 0.2797,
+        "mm_per_year": 872.1
+      },
+      {
+        "period": "2001-2005",
+        "wet_fraction": 0.2864,
+        "mm_per_year": 970.7
+      },
+      {
+        "period": "2006-2010",
+        "wet_fraction": 0.3083,
+        "mm_per_year": 1064.1
+      },
+      {
+        "period": "2011-2015",
+        "wet_fraction": 0.2908,
+        "mm_per_year": 1055.0
+      },
+      {
+        "period": "2016-2020",
+        "wet_fraction": 0.3191,
+        "mm_per_year": 1056.3
+      },
+      {
+        "period": "2021-2024",
+        "wet_fraction": 0.2977,
+        "mm_per_year": 996.9
+      }
+    ],
+    "early_window": "1996-2005",
+    "late_window": "2016-2024",
+    "decomposition": [
+      {
+        "threshold_mm": 0.2,
+        "early": 0.398,
+        "late": 0.4334,
+        "relative_change": 0.0889
+      },
+      {
+        "threshold_mm": 1.0,
+        "early": 0.2831,
+        "late": 0.3096,
+        "relative_change": 0.0938
+      },
+      {
+        "threshold_mm": 5.0,
+        "early": 0.1473,
+        "late": 0.1615,
+        "relative_change": 0.0966
+      },
+      {
+        "threshold_mm": 10.0,
+        "early": 0.0819,
+        "late": 0.0915,
+        "relative_change": 0.1184
+      },
+      {
+        "threshold_mm": 20.0,
+        "early": 0.0304,
+        "late": 0.0322,
+        "relative_change": 0.061
+      }
+    ],
+    "intensity_early": {
+      "mean_mm": 8.71,
+      "median_mm": 5.3
+    },
+    "intensity_late": {
+      "mean_mm": 8.91,
+      "median_mm": 5.25
+    },
+    "wet_fraction_full": 0.297,
+    "wet_fraction_late": 0.3096,
+    "intensification_signature": false
+  },
+  {
+    "location": "venezia",
+    "name": "Venezia",
+    "by_period": [
+      {
+        "period": "1996-2000",
+        "wet_fraction": 0.2972,
+        "mm_per_year": 950.3
+      },
+      {
+        "period": "2001-2005",
+        "wet_fraction": 0.2985,
+        "mm_per_year": 1033.2
+      },
+      {
+        "period": "2006-2010",
+        "wet_fraction": 0.3154,
+        "mm_per_year": 1131.8
+      },
+      {
+        "period": "2011-2015",
+        "wet_fraction": 0.3067,
+        "mm_per_year": 1133.9
+      },
+      {
+        "period": "2016-2020",
+        "wet_fraction": 0.295,
+        "mm_per_year": 997.1
+      },
+      {
+        "period": "2021-2024",
+        "wet_fraction": 0.2745,
+        "mm_per_year": 950.0
+      }
+    ],
+    "early_window": "1996-2005",
+    "late_window": "2016-2024",
+    "decomposition": [
+      {
+        "threshold_mm": 0.2,
+        "early": 0.4172,
+        "late": 0.4112,
+        "relative_change": -0.0144
+      },
+      {
+        "threshold_mm": 1.0,
+        "early": 0.2978,
+        "late": 0.2859,
+        "relative_change": -0.0401
+      },
+      {
+        "threshold_mm": 5.0,
+        "early": 0.1566,
+        "late": 0.1505,
+        "relative_change": -0.0385
+      },
+      {
+        "threshold_mm": 10.0,
+        "early": 0.0843,
+        "late": 0.0858,
+        "relative_change": 0.0172
+      },
+      {
+        "threshold_mm": 20.0,
+        "early": 0.0323,
+        "late": 0.0335,
+        "relative_change": 0.0357
+      }
+    ],
+    "intensity_early": {
+      "mean_mm": 8.92,
+      "median_mm": 5.3
+    },
+    "intensity_late": {
+      "mean_mm": 9.13,
+      "median_mm": 5.4
+    },
+    "wet_fraction_full": 0.2987,
+    "wet_fraction_late": 0.2859,
+    "intensification_signature": false
+  }
+]

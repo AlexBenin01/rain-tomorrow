@@ -1,0 +1,4 @@
+# Training only. The daily run and the published page need none of this:
+# the model ships as JSON coefficients, and inference is a sigmoid.
+pandas==3.0.5
+scikit-learn==1.9.0
