@@ -190,6 +190,35 @@ The train/test boundary is a different matter and stays global and absolute: **n
 
 ---
 
+## 2b. The current day is never returned truncated — it is filled
+
+Measured on 2026-08-20 at 19:00 local: the archive returns **all 24 hours** for the day in
+progress, including hours that have not happened yet.
+
+```
+hours returned for 2026-08-20 : 24
+hours with a value            : 24
+last hour with data           : 2026-08-20T23:00
+```
+
+This is useful and slightly uncomfortable at the same time.
+
+**Useful,** because it removes a whole class of error: the daily aggregate is never computed over a
+truncated day, so `temperature_2m_max` and `precipitation_sum` are not silently biased low just
+because the evening has not arrived.
+
+**Uncomfortable,** because it means the feature day always contains some model output rather than
+pure analysis. The claim "trained on reanalysis, served from reanalysis" is therefore true of the
+*product*, but the most recent day is a blend. The size of the blend depends on when the run
+happens: the scheduled 21:00 UTC run leaves roughly one hour filled, while a run at 17:00 UTC leaves
+about five.
+
+It is a smaller problem than the one avoided — feeding the model an operational analysis it was
+never trained on, which disagrees with the reanalysis on 13% of rain days (§1.3) — but it is not
+zero, and it belongs in the record rather than in a footnote.
+
+---
+
 ## 3. Licence
 
 Weather data from Open-Meteo, **CC BY 4.0**, derived from the **ERA5 / ERA5-Land** reanalysis of the
