@@ -79,6 +79,34 @@ days.forEach((target, i) => {
   if (!ok) errors.push(`blocco ${target}: atteso ${expected[when].join("/")}`);
 });
 
+// The ladder must be monotonic ON THE PAGE, not just in Python. A 10 mm
+// probability printed above the 1 mm one would discredit every other number.
+const ladders = [...d.querySelectorAll(".ladder")];
+console.log(`scale di intensita     : ${ladders.length}`);
+let rungTotal = 0;
+for (const ladder of ladders) {
+  const values = [...ladder.querySelectorAll(".rung-value")]
+    .map((n) => parseFloat(n.textContent));
+  rungTotal += values.length;
+  for (let i = 1; i < values.length; i++) {
+    if (values[i] > values[i - 1]) {
+      errors.push(`scala non monotona: ${values.join(" > ")}`);
+      break;
+    }
+  }
+}
+console.log(`  gradini totali       : ${rungTotal}, tutti monotoni`);
+
+// The binary verdict is gone on purpose: "no rain expected" above a 45% figure
+// was actively misleading on an event with a 30% base rate.
+const body = d.body.textContent;
+for (const phrase of ["no rain expected", "rain expected",
+                      "pioggia non prevista", "pioggia prevista"]) {
+  if (body.includes(phrase)) errors.push(`verdetto binario ancora presente: "${phrase}"`);
+}
+console.log(`  verdetti binari      : nessuno`);
+console.log(`  tabella dei tagli    : ${d.querySelectorAll("#cut-table tbody tr").length} righe`);
+
 const before = d.querySelector("h1").textContent;
 d.getElementById("lang-toggle").dispatchEvent(new window.Event("click"));
 await new Promise((r) => setTimeout(r, 200));

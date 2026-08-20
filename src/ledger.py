@@ -24,6 +24,10 @@ ISSUED_FIELDS = (
     "om_prob", "om_prob_mean", "om_precip_mm", "om_rain",
     "climatology", "model_version",
 )
+# Added with the intensity thresholds. Rows written before that exist without
+# them and MUST stay readable: rewriting history to tidy a schema would destroy
+# exactly the property the ledger is kept for. Readers use `probabilities()`.
+OPTIONAL_FIELDS = ("our_probs",)
 # fields a later run may fill in, exactly once
 OUTCOME_FIELDS = ("observed_mm", "observed_rain", "scored_at")
 
@@ -95,6 +99,28 @@ def score(record: dict, observed_mm: float, threshold_mm: float, scored_at: str)
     record["observed_rain"] = bool(observed_mm >= threshold_mm)
     record["scored_at"] = scored_at
     return True
+
+
+def probabilities(record: dict) -> dict[float, float]:
+    """Exceedance probabilities for one record, tolerant of older rows.
+
+    Rows issued before the intensity thresholds existed carry only the headline
+    1 mm figure; they return just that, rather than raising or being skipped.
+    """
+    raw = record.get("our_probs")
+    if raw:
+        return {float(k): v for k, v in raw.items()}
+    return {config_threshold(): record["our_prob"]}
+
+
+def config_threshold() -> float:
+    import config
+    return config.RAIN_THRESHOLD_MM
+
+
+def schema_of(record: dict) -> str:
+    """Which generation a row belongs to, for segmenting the verification."""
+    return "v2" if record.get("our_probs") else "v1"
 
 
 def verified(records: list[dict]) -> list[dict]:

@@ -56,7 +56,7 @@ def score_pending(records: list[dict], today: date, dry_run: bool) -> int:
         location = locations.get(city)
         days = sorted(date.fromisoformat(r["target_date"]) for r in city_records)
         rows = sources.reanalysis(
-            location.lat, location.lon, days[0], days[-1], with_leaf_wetness=False
+            location.lat, location.lon, days[0], days[-1], with_hourly=False
         )
         observed = {r["date"]: r["rainfall_mm"] for r in rows}
 
@@ -102,7 +102,8 @@ def issue_forecasts(records: list[dict], today: date, dry_run: bool) -> int:
                 f"{location.key}: only {len(history)} days of history, need 7"
             )
 
-        probability = mdl.predict(features)
+        ladder = mdl.predict_all(features)
+        probability = ladder[mdl.threshold_mm]
         benchmark = sources.nwp_forecast(location.lat, location.lon, target) or {
             "om_prob": None, "om_prob_mean": None, "om_precip_mm": None, "om_rain": None
         }
@@ -112,15 +113,19 @@ def issue_forecasts(records: list[dict], today: date, dry_run: bool) -> int:
             "city": location.key,
             "target_date": target.isoformat(),
             "our_prob": round(probability, 4),
+            # kept for continuity with every row issued before the thresholds
+            # existed, so the historical verification stays comparable
             "our_rain": bool(probability >= mdl.decision_threshold),
+            "our_probs": {f"{mm:g}": round(p, 4) for mm, p in ladder.items()},
             "climatology": round(mdl.climatology(target.month), 4),
             "model_version": mdl.version,
             **benchmark,
         }
 
-        om = "—" if record["om_prob"] is None else f"{record['om_prob']:.0%}"
-        print(f"  {location.name:<20} {probability:>5.0%}   "
-              f"(climatology {record['climatology']:.0%}, Open-Meteo {om})")
+        om = "—" if record["om_precip_mm"] is None else f"{record['om_precip_mm']:.1f} mm"
+        rungs = "  ".join(f"{mm:g}mm {p:.0%}" for mm, p in ladder.items())
+        print(f"  {location.name:<20} {rungs}   "
+              f"(normale {record['climatology']:.0%}, Open-Meteo {om})")
 
         if not dry_run and ledger.add_forecast(records, record):
             issued += 1

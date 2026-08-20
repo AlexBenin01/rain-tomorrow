@@ -1,7 +1,7 @@
 // Page assembly. Loads one JSON bundle, renders everything, makes no other
 // network request — the model runs here, in the reader's browser.
 import { initialLanguage, rememberLanguage, translator, STRINGS } from "./i18n.js";
-import { selfCheck, predict } from "./model.js";
+import { selfCheck, predictLadder, shippedThresholds } from "./model.js";
 import { divergingBars, reliabilityChart, cityStrip, probabilityMeter } from "./charts.js";
 
 let bundle = null;
@@ -33,6 +33,7 @@ function render() {
   renderLive();
   renderRecord();
   renderBaselines();
+  renderCut();
   renderReliability();
   renderStationarity();
   renderPhysics();
@@ -92,22 +93,17 @@ function renderLive() {
       const card = document.createElement("article");
       card.className = "city-card";
       card.innerHTML = `
-        <div class="city-head">
-          <h4>${byKey[record.city].name}</h4>
-          <span class="verdict ${record.our_rain ? "wet" : "dry"}">
-            ${record.our_rain ? t("live.willRain") : t("live.wontRain")}
-          </span>
-        </div>
+        <h4>${byKey[record.city].name}</h4>
         <div class="city-prob"><strong>${pct(record.our_prob)}</strong>
           <span class="muted">${t("live.threshold")}</span></div>
+        <p class="vs-normal">${versusNormal(record, target)}</p>
         <div class="city-meter"></div>
-        <dl class="city-detail">
-          <div><dt>${t("live.climatology")}</dt><dd>${pct(record.climatology)}</dd></div>
-          <div><dt>${t("live.openmeteo")}</dt>
-            <dd>${record.om_precip_mm === null ? "—" : `${record.om_precip_mm.toFixed(1)} mm`}</dd></div>
-        </dl>`;
+        <div class="ladder"></div>
+        <p class="muted small om-line">${t("live.openmeteo")}
+          ${record.om_precip_mm === null ? "—" : `${record.om_precip_mm.toFixed(1)} mm`}</p>`;
       card.querySelector(".city-meter")
         .appendChild(probabilityMeter(record.our_prob, record.climatology));
+      card.querySelector(".ladder").innerHTML = ladderRows(city, record);
       list.appendChild(card);
     }
     block.appendChild(list);
@@ -165,6 +161,37 @@ function renderRecord() {
       : "");
 }
 
+// A probability only means something next to the rate it is being compared with.
+// "45%" reads as "probably not"; "45%, one and a half times the August normal"
+// reads as what it is.
+function versusNormal(record, target) {
+  const month = new Date(`${target}T12:00:00Z`).toLocaleDateString(
+    lang === "it" ? "it-IT" : "en-GB", { month: "long" }
+  );
+  const clim = pct(record.climatology);
+  const ratio = record.our_prob / record.climatology;
+  if (ratio > 0.85 && ratio < 1.15) return t("live.atNormal", { month, clim });
+  return t("live.vsNormal", { ratio: ratio.toFixed(1).replace(".", lang === "it" ? "," : "."),
+                              month, clim });
+}
+
+// The intensity ladder. Rows issued before the thresholds existed carry only the
+// headline figure, and are left showing just that rather than being hidden.
+function ladderRows(city, record) {
+  if (!record.our_probs) return "";
+  const shipped = shippedThresholds(city);
+  const rows = shipped.map((mm) => {
+    const p = record.our_probs[String(mm)];
+    if (p === undefined) return "";
+    return `<div class="rung">
+        <span class="rung-label">${t("live.atLeast")} ${mm} mm</span>
+        <span class="rung-bar"><i style="width:${Math.max(2, p * 100)}%"></i></span>
+        <span class="rung-value">${pct(p)}</span>
+      </div>`;
+  });
+  return `<div class="ladder-head">${t("live.ladder")}</div>${rows.join("")}`;
+}
+
 function statTiles(pairs) {
   return pairs
     .map(([label, value]) => `<div class="tile"><dt>${label}</dt><dd>${value}</dd></div>`)
@@ -176,7 +203,8 @@ function statTiles(pairs) {
 // --------------------------------------------------------------------------
 function renderBaselines() {
   const city = bundle.cities[0];
-  const items = city.test_comparison.map((row) => ({
+  const primary = city.thresholds[String(shippedThresholds(city)[0])];
+  const items = primary.test_comparison.map((row) => ({
     label: t(`baseline.${row.name}`),
     value: row.bss,
     highlight: row.name === "logistic regression"
@@ -190,12 +218,28 @@ function renderBaselines() {
 // --------------------------------------------------------------------------
 // Reliability
 // --------------------------------------------------------------------------
+function renderCut() {
+  const city = bundle.cities[0];
+  const primary = city.thresholds[String(shippedThresholds(city)[0])];
+  const sweep = primary.threshold_sweep || [];
+  $("cut-table").innerHTML =
+    `<thead><tr><th>${t("cut.threshold")}</th><th>${t("cut.pod")}</th>` +
+    `<th>${t("cut.far")}</th><th>${t("cut.csi")}</th></tr></thead><tbody>` +
+    sweep.map((row) => {
+      const best = row.CSI === Math.max(...sweep.map((x) => x.CSI));
+      return `<tr class="${best ? "best" : ""}${row.threshold === 0.5 ? " default" : ""}">
+        <th scope="row">${pct(row.threshold)}</th>
+        <td>${pct(row.POD)}</td><td>${pct(row.FAR)}</td><td>${row.CSI.toFixed(3)}</td></tr>`;
+    }).join("") + "</tbody>";
+}
+
 function renderReliability() {
   const city = bundle.cities[0];
+  const primary = city.thresholds[String(shippedThresholds(city)[0])];
   const box = $("reliability-chart");
   box.innerHTML = "";
   box.appendChild(
-    reliabilityChart(city.reliability, {
+    reliabilityChart(primary.reliability, {
       predicted: t("reliability.predicted"),
       observed: t("reliability.observed"),
       samples: t("reliability.samples"),
@@ -249,11 +293,10 @@ function renderStationarity() {
 function renderPhysics() {
   const first = bundle.cities[0];
   const features = first.feature_names;
-  const max = Math.max(
-    ...bundle.cities.flatMap((c) => c.coefficients.map(Math.abs))
-  );
+  const coefOf = (c) => c.thresholds[String(shippedThresholds(c)[0])].coefficients;
+  const max = Math.max(...bundle.cities.flatMap((c) => coefOf(c).map(Math.abs)));
   const order = features
-    .map((name, i) => ({ name, weight: Math.abs(first.coefficients[i]), i }))
+    .map((name, i) => ({ name, weight: Math.abs(coefOf(first)[i]), i }))
     .sort((a, b) => b.weight - a.weight);
 
   const head = bundle.cities.map((c) => `<th>${c.name.split(" ")[0]}</th>`).join("");
@@ -266,12 +309,12 @@ function renderPhysics() {
     tr.innerHTML =
       `<th scope="row"><code>${name}</code></th>` +
       bundle.cities
-        .map((c) => `<td class="${c.coefficients[i] < 0 ? "neg" : "pos"}">` +
-          `${signed(c.coefficients[i], 2)}</td>`)
+        .map((c) => `<td class="${coefOf(c)[i] < 0 ? "neg" : "pos"}">` +
+          `${signed(coefOf(c)[i], 2)}</td>`)
         .join("") +
       `<td class="strip-cell"></td>`;
     tr.querySelector(".strip-cell")
-      .appendChild(cityStrip(bundle.cities.map((c) => c.coefficients[i]), max));
+      .appendChild(cityStrip(bundle.cities.map((c) => coefOf(c)[i]), max));
     tbody.appendChild(tr);
   }
   table.appendChild(tbody);
@@ -292,7 +335,7 @@ function renderSelfCheck() {
   const result = selfCheck(bundle.cities);
   box.className = result.ok ? "self-check ok" : "self-check fail";
   box.textContent = result.ok
-    ? t("check.ok", { n: result.coefficients, v: result.cases })
+    ? t("check.ok", { n: result.coefficients, v: result.cases, m: result.models })
     : t("check.fail", { err: result.error });
 }
 

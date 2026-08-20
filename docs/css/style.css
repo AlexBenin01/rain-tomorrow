@@ -208,3 +208,23 @@ a { color: var(--accent); }
 .day-heading.tomorrow { color: var(--accent); }
 .day-heading.past { color: var(--muted); }
 .city-card h4 { font-size: 0.95rem; margin: 0; font-weight: 600; }
+
+/* --- probability read against the normal, and the intensity ladder --- */
+.city-card h4 { font-size: 0.95rem; margin: 0 0 4px; font-weight: 600; }
+.vs-normal { margin: 2px 0 0; font-size: 0.78rem; color: var(--muted); }
+.ladder { margin-top: 10px; }
+.ladder-head {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+.rung { display: flex; align-items: center; gap: 7px; font-size: 0.76rem; margin: 2px 0; }
+.rung-label { flex: 0 0 5.6em; color: var(--muted); }
+.rung-bar { flex: 1; height: 5px; background: var(--border); border-radius: 3px; }
+.rung-bar i { display: block; height: 100%; background: var(--wet); border-radius: 3px; }
+.rung-value { flex: 0 0 2.4em; text-align: right; font-variant-numeric: tabular-nums; }
+.om-line { margin: 9px 0 0; }
+#cut-table tr.best td, #cut-table tr.best th { font-weight: 600; color: var(--positive); }
+#cut-table tr.default td, #cut-table tr.default th { color: var(--muted); }

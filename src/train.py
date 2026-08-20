@@ -48,7 +48,8 @@ ROOT = Path(__file__).resolve().parent.parent
 MIN_GAIN_OVER_PERSISTENCE = 0.05
 C_GRID = (0.003, 0.01, 0.03, 0.1, 0.3, 1.0, 3.0)
 
-FEATURES = [
+# v1: everything derivable from daily aggregates.
+FEATURES_DAILY = [
     "rain_today_log",
     "rained_today",
     "wet_days_last_7",
@@ -68,6 +69,24 @@ FEATURES = [
     "cos_doy",
 ]
 
+# v2 adds the SHAPE of the day, which the daily means throw away.
+FEATURES_INTRADAY = [
+    "d_pressure_intraday",
+    "pressure_drop_today",
+    "cloud_evening",
+    "cloud_trend",
+    "dewpoint_depression_pm",
+    "wind_veer",
+    "precip_hours_today",
+    "rh_evening_excess",
+]
+
+FEATURE_SETS = {
+    "daily": FEATURES_DAILY,
+    "full": FEATURES_DAILY + FEATURES_INTRADAY,
+}
+FEATURES = FEATURE_SETS["full"]
+
 FEATURE_GLOSS = {
     "rain_today_log": "today's rain, log(1+mm) — the strongest single predictor",
     "rained_today": "did it rain today (>= 1 mm) — persistence, in binary form",
@@ -86,13 +105,21 @@ FEATURE_GLOSS = {
     "wind_speed": "mean wind speed",
     "sin_doy": "annual cycle (sine)",
     "cos_doy": "annual cycle (cosine)",
+    "d_pressure_intraday": "pressure at 18:00 minus 06:00 — the fall *within* the day",
+    "pressure_drop_today": "how far pressure dipped below its own daily mean",
+    "cloud_evening": "mean cloud 15-21, the state the day closes on",
+    "cloud_trend": "evening cloud minus morning cloud — clouding over, or clearing",
+    "dewpoint_depression_pm": "mean (T − dew point) 12-18 — low-level moisture",
+    "wind_veer": "signed wind rotation morning → evening — frontal passage",
+    "precip_hours_today": "hours with rain: a downpour and drizzle differ at equal mm",
+    "rh_evening_excess": "evening humidity above the daily mean",
 }
 
 
 # --------------------------------------------------------------------------
 # Data
 # --------------------------------------------------------------------------
-def build_frame(csv_path: Path) -> pd.DataFrame:
+def build_frame(csv_path: Path, threshold_mm: float = config.RAIN_THRESHOLD_MM) -> pd.DataFrame:
     if not csv_path.is_file():
         raise SystemExit(f"missing {csv_path} — run src/fetch_weather.py first")
     df = pd.read_csv(csv_path, parse_dates=["date"]).sort_values("date").reset_index(drop=True)
@@ -101,7 +128,10 @@ def build_frame(csv_path: Path) -> pd.DataFrame:
     if not (gaps == 1).all():
         raise SystemExit(f"{csv_path.name}: the series has gaps — refusing to train on it")
 
-    wet = (df["rainfall_mm"] >= config.RAIN_THRESHOLD_MM).astype(int)
+    # `wet` drives the persistence features; `target` is the event being predicted.
+    # They use the same threshold so "it rained today" means the same thing as
+    # "it rains tomorrow" for whichever intensity is being modelled.
+    wet = (df["rainfall_mm"] >= threshold_mm).astype(int)
     tmean = (df["temp_min"] + df["temp_max"]) / 2.0
     doy = df["date"].dt.dayofyear
 
@@ -126,6 +156,8 @@ def build_frame(csv_path: Path) -> pd.DataFrame:
     df["wind_speed"] = df["wind_speed_kmh"]
     df["sin_doy"] = np.sin(2 * np.pi * doy / 365.25)
     df["cos_doy"] = np.cos(2 * np.pi * doy / 365.25)
+    # the intra-day features arrive as CSV columns already, computed at fetch
+    # time from the hourly series — see src/sources.py:intraday_features
 
     # the target is TOMORROW: no feature may look past today
     df["target"] = wet.shift(-1)
@@ -178,10 +210,18 @@ def evaluate(name: str, probs: list[float], outcomes: list[float], ref: list[flo
 # --------------------------------------------------------------------------
 # Training
 # --------------------------------------------------------------------------
-def train_location(location, train_split: str = "train", quiet: bool = False) -> dict:
-    """Fit one location. `train_split` selects the training file, for the ablation."""
-    frame = build_frame(ROOT / "data" / f"{location.key}_{train_split}.csv")
-    test = build_frame(ROOT / "data" / f"{location.key}_test.csv")
+def train_location(location, train_split: str = "train", quiet: bool = False,
+                   feature_set: str = "full",
+                   threshold_mm: float = config.RAIN_THRESHOLD_MM) -> dict:
+    """Fit one location.
+
+    `train_split` selects the training file (for the window ablation);
+    `feature_set` selects which predictors are available, so v1 and v2 can be
+    compared with everything else held identical.
+    """
+    features = FEATURE_SETS[feature_set]
+    frame = build_frame(ROOT / "data" / f"{location.key}_{train_split}.csv", threshold_mm)
+    test = build_frame(ROOT / "data" / f"{location.key}_test.csv", threshold_mm)
 
     train = frame[frame["date"].dt.year < config.VALIDATION_YEAR].reset_index(drop=True)
     val = frame[frame["date"].dt.year == config.VALIDATION_YEAR].reset_index(drop=True)
@@ -204,13 +244,13 @@ def train_location(location, train_split: str = "train", quiet: bool = False) ->
 
     # --- regularisation chosen on the validation year, never on the test set
     bl_train = fit_baselines(train)
-    scaler_sel = StandardScaler().fit(train[FEATURES])
+    scaler_sel = StandardScaler().fit(train[features])
     ref_val = [bl_train["base_rate"]] * len(val)
     scores = {}
     for c in C_GRID:
-        model = LogisticRegression(C=c, max_iter=2000).fit(scaler_sel.transform(train[FEATURES]),
+        model = LogisticRegression(C=c, max_iter=2000).fit(scaler_sel.transform(train[features]),
                                                            y_train)
-        probs = model.predict_proba(scaler_sel.transform(val[FEATURES]))[:, 1].tolist()
+        probs = model.predict_proba(scaler_sel.transform(val[features]))[:, 1].tolist()
         scores[c] = metrics.brier_skill_score(probs, y_val, ref_val)
     best_c = max(scores, key=scores.get)
     say(f"  C selected on validation: {best_c}  (BSS {scores[best_c]:+.4f})")
@@ -220,15 +260,15 @@ def train_location(location, train_split: str = "train", quiet: bool = False) ->
     fit_df = pd.concat([train, val], ignore_index=True)
     y_fit = fit_df["target"].tolist()
     bl = fit_baselines(fit_df)
-    scaler = StandardScaler().fit(fit_df[FEATURES])
+    scaler = StandardScaler().fit(fit_df[features])
 
-    lr = LogisticRegression(C=best_c, max_iter=2000).fit(scaler.transform(fit_df[FEATURES]), y_fit)
+    lr = LogisticRegression(C=best_c, max_iter=2000).fit(scaler.transform(fit_df[features]), y_fit)
     gb = HistGradientBoostingClassifier(
         max_depth=3, max_iter=200, learning_rate=0.05, random_state=0
-    ).fit(fit_df[FEATURES], y_fit)
+    ).fit(fit_df[features], y_fit)
 
-    p_lr = lr.predict_proba(scaler.transform(test[FEATURES]))[:, 1].tolist()
-    p_gb = gb.predict_proba(test[FEATURES])[:, 1].tolist()
+    p_lr = lr.predict_proba(scaler.transform(test[features]))[:, 1].tolist()
+    p_gb = gb.predict_proba(test[features])[:, 1].tolist()
 
     ref_test = [bl["base_rate"]] * len(test)
     rows = [evaluate(k, v, y_test, ref_test) for k, v in apply_baselines(bl, test).items()]
@@ -251,11 +291,14 @@ def train_location(location, train_split: str = "train", quiet: bool = False) ->
 
     return {
         "location": location,
+        "threshold_mm": threshold_mm,
+        "features": features,
+        "feature_set": feature_set,
         "best_c": best_c,
         "validation_scores": scores,
         "baselines": bl,
         "rows": rows,
-        "coefficients": dict(zip(FEATURES, (float(c) for c in lr.coef_[0]))),
+        "coefficients": dict(zip(features, (float(c) for c in lr.coef_[0]))),
         "intercept": float(lr.intercept_[0]),
         "scaler_mean": [float(v) for v in scaler.mean_],
         "scaler_scale": [float(v) for v in scaler.scale_],
@@ -280,7 +323,7 @@ def train_location(location, train_split: str = "train", quiet: bool = False) ->
         "test_rainfall": [float(v) for v in test["rainfall_mm"].shift(-1).fillna(0)],
         "reference_vectors": [
             {
-                "features": {f: float(test.iloc[i][f]) for f in FEATURES},
+                "features": {f: float(test.iloc[i][f]) for f in features},
                 "expected_probability": float(p_lr[i]),
             }
             for i in probe
@@ -288,28 +331,14 @@ def train_location(location, train_split: str = "train", quiet: bool = False) ->
     }
 
 
-def write_artifact(result: dict) -> Path:
-    location = result["location"]
+def _threshold_block(result: dict) -> dict:
+    """Everything specific to one intensity threshold."""
     lr_row = next(r for r in result["rows"] if r["name"] == "logistic regression")
-    artifact = {
-        "schema_version": config.SCHEMA_VERSION,
-        "model": "logistic_regression",
-        "location": {
-            "key": location.key, "name": location.name,
-            "lat": location.lat, "lon": location.lon,
-            "source": "Open-Meteo Archive / ERA5 (C3S-ECMWF), CC-BY 4.0",
-        },
-        "target": f"next-day precipitation >= {config.RAIN_THRESHOLD_MM} mm",
-        "horizon_days": 1,
-        "threshold_mm": config.RAIN_THRESHOLD_MM,
-        "decision_threshold": config.DECISION_THRESHOLD,
-        "trained_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        "train_window": result["windows"]["train"],
-        "validation_window": result["windows"]["validation"],
-        "test_window": result["windows"]["test"],
+    return {
+        "threshold_mm": result["threshold_mm"],
+        "target": f"next-day precipitation >= {result['threshold_mm']:g} mm",
         "regularization_C": result["best_c"],
-        "feature_names": FEATURES,
-        "coefficients": [result["coefficients"][f] for f in FEATURES],
+        "coefficients": [result["coefficients"][f] for f in result["features"]],
         "intercept": result["intercept"],
         "scaler_mean": result["scaler_mean"],
         "scaler_scale": result["scaler_scale"],
@@ -320,15 +349,10 @@ def write_artifact(result: dict) -> Path:
         # show the ladder without having to re-derive the baselines itself
         "test_comparison": [
             {
-                "name": r["name"],
-                "brier": r["brier"],
-                "bss": r["bss"],
-                "POD": r["POD"],
-                "FAR": r["FAR"],
-                "CSI": r["CSI"],
+                "name": r["name"], "brier": r["brier"], "bss": r["bss"],
+                "POD": r["POD"], "FAR": r["FAR"], "CSI": r["CSI"],
                 "hit_rate": r["hit_rate"],
-                "roc_auc": r.get("roc_auc"),
-                "pr_auc": r.get("pr_auc"),
+                "roc_auc": r.get("roc_auc"), "pr_auc": r.get("pr_auc"),
             }
             for r in result["rows"]
         ],
@@ -343,10 +367,68 @@ def write_artifact(result: dict) -> Path:
         },
         "reference_vectors": result["reference_vectors"],
     }
+
+
+def write_artifact(results: list[dict]) -> Path:
+    """One artefact per location, carrying every threshold that earned its place.
+
+    A threshold that fails the stop criterion is recorded but marked `shipped:
+    false`, so the reason it is absent from the page stays in the file rather
+    than only in someone's memory.
+    """
+    first = results[0]
+    location = first["location"]
+    artifact = {
+        "schema_version": config.SCHEMA_VERSION,
+        "model": "logistic_regression",
+        "location": {
+            "key": location.key, "name": location.name,
+            "lat": location.lat, "lon": location.lon,
+            "source": "Open-Meteo Archive / ERA5 (C3S-ECMWF), CC-BY 4.0",
+        },
+        "horizon_days": 1,
+        "decision_threshold": config.DECISION_THRESHOLD,
+        "trained_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "train_window": first["windows"]["train"],
+        "validation_window": first["windows"]["validation"],
+        "test_window": first["windows"]["test"],
+        "feature_names": first["features"],
+        "feature_set": first["feature_set"],
+        "thresholds": {},
+    }
+    for result in results:
+        block = _threshold_block(result)
+        block["shipped"] = bool(result["passed"])
+        artifact["thresholds"][f"{result['threshold_mm']:g}"] = block
+
+    artifact["shipped_thresholds"] = [
+        k for k, v in artifact["thresholds"].items() if v["shipped"]
+    ]
     out = ROOT / "models" / f"{location.key}.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(artifact, indent=2), encoding="utf-8")
     return out
+
+
+def feature_ablation(location) -> dict:
+    """Does the shape of the day add anything the daily means do not?
+
+    Both variants trained with everything else held identical — same split, same
+    grid, same test set, same protocol — so the difference is attributable to the
+    features and to nothing else.
+    """
+    v1 = train_location(location, feature_set="daily", quiet=True)
+    v2 = train_location(location, feature_set="full", quiet=True)
+
+    def bss(result):
+        return next(r for r in result["rows"] if r["name"] == "logistic regression")["bss"]
+
+    return {
+        "location": location.name,
+        "daily": {"n_features": len(v1["features"]), "bss": bss(v1), "C": v1["best_c"]},
+        "full": {"n_features": len(v2["features"]), "bss": bss(v2), "C": v2["best_c"]},
+        "gain": bss(v2) - bss(v1),
+    }
 
 
 def window_ablation(location) -> dict:
@@ -384,14 +466,57 @@ def main() -> int:
     group.add_argument("--all", action="store_true")
     parser.add_argument("--ablation", metavar="LOCATION",
                         help="also train this location on the long window and compare")
+    parser.add_argument("--feature-set", choices=list(FEATURE_SETS), default="full",
+                        help="which predictors the model may use")
+    parser.add_argument("--thresholds", action="store_true",
+                        help="train every intensity threshold, not just 1 mm")
+    parser.add_argument("--compare-features", action="store_true",
+                        help="train daily-only and full side by side, and report the difference")
     args = parser.parse_args()
 
     targets = locations.all_locations() if args.all else [locations.get(args.location)]
-    results = [train_location(loc) for loc in targets]
 
-    for result in results:
-        path = write_artifact(result)
-        print(f"  artefact -> {path.relative_to(ROOT)}")
+    if args.compare_features:
+        print("=== does the shape of the day help? ===")
+        print(f"  {'location':<20}{'v1 daily':>11}{'v2 + shape':>13}{'gain':>10}{'C':>8}")
+        gains = []
+        for loc in targets:
+            a = feature_ablation(loc)
+            gains.append(a["gain"])
+            print(f"  {loc.name:<20}{a['daily']['bss']:>+11.4f}{a['full']['bss']:>+13.4f}"
+                  f"{a['gain']:>+10.4f}{a['full']['C']:>8}")
+        mean_gain = sum(gains) / len(gains)
+        wins = sum(1 for g in gains if g > 0)
+        print("")
+        print(f"  mean gain {mean_gain:+.4f}, better at {wins}/{len(gains)} locations")
+        print("  -> " + ("keep v2" if mean_gain > 0 and wins > len(gains) / 2
+                         else "KEEP v1: the extra features do not earn their place"))
+        return 0
+
+    thresholds = config.INTENSITY_THRESHOLDS if args.thresholds else [config.RAIN_THRESHOLD_MM]
+    per_location = {}
+    for loc in targets:
+        per_location[loc.key] = [
+            train_location(loc, feature_set=args.feature_set, threshold_mm=t)
+            for t in thresholds
+        ]
+
+    print("")
+    print("=== which thresholds earned their place ===")
+    print(f"  {'location':<20}" + "".join(f"{t:g} mm".rjust(12) for t in thresholds))
+    for loc in targets:
+        cells = ""
+        for r in per_location[loc.key]:
+            mark = "PASS" if r["passed"] else "no"
+            cells += f"{r['gain']:+.3f} {mark}".rjust(12)
+        print(f"  {loc.name:<20}{cells}")
+
+    for loc in targets:
+        path = write_artifact(per_location[loc.key])
+        shipped = sum(1 for r in per_location[loc.key] if r["passed"])
+        print(f"  artefact -> {path.relative_to(ROOT)}  ({shipped}/{len(thresholds)} shipped)")
+
+    results = [per_location[loc.key][0] for loc in targets]
 
     ablation = None
     if args.ablation:
@@ -404,7 +529,13 @@ def main() -> int:
               f"{'the long window' if ablation['difference'] > 0 else 'the short window'}")
 
     if args.all:
-        report_writer.write(results, ablation)
+        gains = [feature_ablation(loc) for loc in targets] if args.thresholds else None
+        report_writer.write(
+            results, ablation,
+            thresholds={loc.name: per_location[loc.key] for loc in targets}
+            if args.thresholds else None,
+            feature_gain=gains,
+        )
         print(f"\nreport -> reports/REPORT.md")
 
     return 0 if all(r["passed"] for r in results) else 2

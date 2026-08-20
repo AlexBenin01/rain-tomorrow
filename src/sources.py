@@ -20,6 +20,7 @@ Standard library only: the daily GitHub Action then runs with no `pip install`
 at all, which makes it both faster and harder to break.
 """
 import json
+import math
 import sys
 import time
 import urllib.error
@@ -92,12 +93,119 @@ def leaf_wetness_by_day(hourly: dict) -> dict[str, int]:
     return counts
 
 
+def _bucket(day_hours: dict, variable: str, hours) -> list[float]:
+    """Values of `variable` for the given local hours of one day, nulls dropped."""
+    return [
+        v for h, v in day_hours.get(variable, {}).items() if h in hours and v is not None
+    ]
+
+
+def _mean(values: list[float]) -> float | None:
+    return sum(values) / len(values) if values else None
+
+
+def _mean_direction(degrees: list[float]) -> float | None:
+    """Vector mean of wind directions. Averaging 350 and 10 arithmetically gives
+    180, which is the exact opposite of the answer."""
+    if not degrees:
+        return None
+    x = sum(math.sin(math.radians(d)) for d in degrees)
+    y = sum(math.cos(math.radians(d)) for d in degrees)
+    if x == 0 and y == 0:
+        return None
+    return math.degrees(math.atan2(x, y)) % 360.0
+
+
+def _signed_turn(start: float, end: float) -> float:
+    """Shortest signed rotation from `start` to `end`, in (-180, 180].
+
+    Positive is veering (clockwise), which classically accompanies a frontal
+    passage; negative is backing.
+    """
+    return (end - start + 180.0) % 360.0 - 180.0
+
+
+def intraday_features(hourly: dict) -> dict[str, dict[str, float]]:
+    """Recover the shape of each day from the hourly series.
+
+    A daily mean answers "how cloudy was it"; these answer "was it clouding
+    over". The second question is the one that says something about tomorrow,
+    and it is thrown away by aggregation.
+
+    Every feature degrades gracefully: if the hours it needs are missing, it
+    falls back to whatever the day does have, and to 0.0 only when there is
+    nothing at all. A run that crashed on one absent hour would be worse than a
+    slightly poorer feature.
+    """
+    by_day: dict[str, dict[str, dict[int, float]]] = {}
+    for i, stamp in enumerate(hourly["time"]):
+        day, hour = stamp[:10], int(stamp[11:13])
+        slot = by_day.setdefault(day, {})
+        for variable in config.HOURLY_VARS:
+            slot.setdefault(variable, {})[hour] = hourly[variable][i]
+
+    out: dict[str, dict[str, float]] = {}
+    for day, hours in by_day.items():
+        pressure = hours.get("pressure_msl", {})
+        p06, p18 = pressure.get(6), pressure.get(18)
+        all_pressure = [v for v in pressure.values() if v is not None]
+
+        morning_cloud = _mean(_bucket(hours, "cloud_cover", config.MORNING_HOURS))
+        evening_cloud = _mean(_bucket(hours, "cloud_cover", config.EVENING_HOURS))
+
+        temps = hours.get("temperature_2m", {})
+        dews = hours.get("dew_point_2m", {})
+        depressions = [
+            temps[h] - dews[h]
+            for h in config.AFTERNOON_HOURS
+            if temps.get(h) is not None and dews.get(h) is not None
+        ]
+
+        morning_wind = _mean_direction(_bucket(hours, "wind_direction_10m", config.MORNING_HOURS))
+        evening_wind = _mean_direction(_bucket(hours, "wind_direction_10m", config.EVENING_HOURS))
+
+        rh_all = _mean([v for v in hours.get("relative_humidity_2m", {}).values() if v is not None])
+        rh_late = _mean(_bucket(hours, "relative_humidity_2m", config.LATE_HOURS))
+
+        out[day] = {
+            "d_pressure_intraday": (
+                p18 - p06 if p06 is not None and p18 is not None else 0.0
+            ),
+            "pressure_drop_today": (
+                _mean(all_pressure) - min(all_pressure) if all_pressure else 0.0
+            ),
+            "cloud_evening": evening_cloud if evening_cloud is not None else 0.0,
+            "cloud_trend": (
+                evening_cloud - morning_cloud
+                if evening_cloud is not None and morning_cloud is not None
+                else 0.0
+            ),
+            "dewpoint_depression_pm": _mean(depressions) or 0.0,
+            "wind_veer": (
+                _signed_turn(morning_wind, evening_wind)
+                if morning_wind is not None and evening_wind is not None
+                else 0.0
+            ),
+            "precip_hours_today": float(
+                sum(
+                    1
+                    for v in hours.get("precipitation", {}).values()
+                    if v is not None and v > config.WET_HOUR_MM
+                )
+            ),
+            "rh_evening_excess": (
+                rh_late - rh_all if rh_late is not None and rh_all is not None else 0.0
+            ),
+        }
+    return out
+
+
 def reanalysis(
-    lat: float, lon: float, start: date, end: date, with_leaf_wetness: bool = True
+    lat: float, lon: float, start: date, end: date, with_hourly: bool = True
 ) -> list[dict]:
     """ERA5 reanalysis, one row per day. The only source the model is fed.
 
-    `with_leaf_wetness` pulls the hourly series as well; 29 years of hourly data
+    `with_hourly` pulls the hourly series as well; 29 years of hourly data
     is ~7 MB and comes back in one request, so there is no need to page it.
     """
     params = {
@@ -108,16 +216,18 @@ def reanalysis(
         "daily": ",".join(config.DAILY_VARS),
         "timezone": config.TIMEZONE,
     }
-    if with_leaf_wetness:
+    if with_hourly:
         params["hourly"] = ",".join(config.HOURLY_VARS)
 
     payload = _get(config.ARCHIVE_URL, params)
     daily = payload["daily"]
-    wetness = leaf_wetness_by_day(payload["hourly"]) if with_leaf_wetness else {}
+    wetness = leaf_wetness_by_day(payload["hourly"]) if with_hourly else {}
+    shape = intraday_features(payload["hourly"]) if with_hourly else {}
 
     rows = []
     for i, day in enumerate(daily["time"]):
         row = {"date": day, "leaf_wetness_h": float(wetness.get(day, 0))}
+        row.update({k: float(v) for k, v in shape.get(day, {}).items()})
         for column, api_name in config.COLUMN_MAP.items():
             value = daily[api_name][i]
             if value is None:

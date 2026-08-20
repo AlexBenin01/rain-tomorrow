@@ -45,15 +45,20 @@ def window_for(split: str, today: date) -> tuple[date, date]:
     raise ValueError(f"unknown split: {split}")
 
 
-def fields_for(split: str) -> list[str]:
-    """The `analysis` split carries no leaf wetness.
+# Everything derived from the hourly series: leaf wetness plus the intra-day
+# shape features.
+HOURLY_DERIVED = {"leaf_wetness_h", *config.INTRADAY_FIELDS}
 
-    Deriving it needs the hourly series, which for 29 years across five cities is
-    ~35 MB of download for a column the stationarity study never reads. The
-    absent column is better than a column silently filled with zeros.
+
+def fields_for(split: str) -> list[str]:
+    """The `analysis` split carries nothing derived from the hourly series.
+
+    Deriving those needs 29 years of hourly data across five cities for columns
+    the stationarity study never reads. Absent columns are better than columns
+    silently filled with zeros.
     """
     if split == "analysis":
-        return [f for f in config.CSV_FIELDS if f != "leaf_wetness_h"]
+        return [f for f in config.CSV_FIELDS if f not in HOURLY_DERIVED]
     return config.CSV_FIELDS
 
 
@@ -87,8 +92,17 @@ def validate(rows: list[dict], start: date, end: date, fields: list[str]) -> Non
             raise DataQualityError(f"temp_max < temp_min on {row['date']}")
         if not 0 <= row["humidity_pct"] <= 100:
             raise DataQualityError(f"humidity out of range on {row['date']}")
-        if "leaf_wetness_h" in fields and not 0 <= row["leaf_wetness_h"] <= 24:
-            raise DataQualityError(f"leaf wetness out of range on {row['date']}")
+        if "leaf_wetness_h" in fields:
+            if not 0 <= row["leaf_wetness_h"] <= 24:
+                raise DataQualityError(f"leaf wetness out of range on {row['date']}")
+            if not 0 <= row["precip_hours_today"] <= 24:
+                raise DataQualityError(f"wet-hour count out of range on {row['date']}")
+            if not -180 <= row["wind_veer"] <= 180:
+                raise DataQualityError(f"wind veer out of range on {row['date']}")
+            if not 0 <= row["cloud_evening"] <= 100:
+                raise DataQualityError(f"evening cloud out of range on {row['date']}")
+            if row["pressure_drop_today"] < 0:
+                raise DataQualityError(f"negative pressure drop on {row['date']}")
         if not 900 <= row["pressure_hpa"] <= 1100:
             raise DataQualityError(f"implausible pressure on {row['date']}")
         if not 0 <= row["wind_dir_deg"] <= 360:
@@ -149,7 +163,7 @@ def fetch_one(location, split: str, today: date) -> Path:
     print(f"  GET {start} -> {end} ({(end - start).days + 1} days)")
     rows = sources.reanalysis(
         location.lat, location.lon, start, end,
-        with_leaf_wetness="leaf_wetness_h" in fields,
+        with_hourly=bool(HOURLY_DERIVED & set(fields)),
     )
 
     validate(rows, start, end, fields)

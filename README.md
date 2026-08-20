@@ -5,9 +5,13 @@ it forecasts** and scored in public against what actually happened.
 
 **[→ Open the live page](https://alexbenin01.github.io/rain-tomorrow/)**
 
-The model is a logistic regression: 17 coefficients, a 9 KB JSON file, and a sigmoid. It runs in
-your browser — the page recomputes it from the published artefact and checks it reproduces the
-Python training output exactly, on reference cases stored inside the artefact.
+The model is a logistic regression: 25 coefficients and a sigmoid, four of them per town — one for
+each rainfall intensity. It runs in your browser. The page recomputes all twenty models from the
+published artefacts and checks they reproduce the Python training output exactly, on reference cases
+stored inside the artefacts.
+
+It answers **how much**, not only whether: *at least 1 mm 63% · at least 5 mm 46% · at least 10 mm
+33% · at least 20 mm 14%*.
 
 ---
 
@@ -16,7 +20,7 @@ Python training output exactly, on reference cases stored inside the artefact.
 ### 1. The best predictor there is scores worse than saying nothing
 
 Persistence — *"tomorrow like today"* — is the strongest single predictor of rain there is.
-Expressed as a flat yes or no, it scores a Brier skill score between **−0.22 and −0.39** across the
+Expressed as a flat yes or no, it scores a Brier skill score between **−0.21 and −0.39** across the
 five towns: worse than a forecaster who says the same thing every single day. The identical
 information, expressed as a **calibrated probability**, scores **+0.09 to +0.15**.
 
@@ -43,7 +47,23 @@ in larger portions, while only in the foothills does the count of light rain day
 Built on one location, the conclusion would have been "the series is non-stationary". Five locations
 made it specific.
 
-### 3. The model missed a pre-registered threshold, and the threshold did not move
+### 3. The shape of the day matters more than the day
+
+Every variable started as a daily mean or sum, which cannot tell *cloudy all day* from *clearing,
+then clouding over*. Eight predictors were added from the hourly series to recover that shape, with
+everything else held identical. Skill rose **at all five towns, by +0.050 on average** — a quarter
+more than the daily aggregates alone, and far more than this kind of addition usually buys.
+
+The strongest of them is the pressure at 18:00 minus the pressure at 06:00. It comes second only to
+the pressure level itself, and it is negative everywhere: pressure falling *within* the day is the
+front arriving.
+
+It also **superseded** a predictor rather than adding to it. The old day-to-day pressure tendency was
+negative at every town; once the sharper measure arrived it flipped positive everywhere and became a
+small correction. Its sign alone is no longer interpretable — only the sum of the tendency terms is,
+and that stays firmly negative.
+
+### 4. The model missed a pre-registered threshold, and the threshold did not move
 
 The stop criterion was written down before any result was seen. The first attempt fell short of it.
 The fix was not to relax the criterion — it was to add the physics that had been left out: pressure,
@@ -58,11 +78,11 @@ the 24-hour pressure tendency, wind direction, cloud cover. Skill rose consisten
 
 | location | Brier | BSS vs climatology | gain over calibrated persistence |
 |---|---|---|---|
-| Bassano del Grappa | 0.1746 | +0.205 | +0.074 |
-| Conegliano | 0.1696 | +0.210 | +0.111 |
-| Vicenza | 0.1656 | +0.216 | +0.097 |
-| Padova | 0.1625 | +0.221 | +0.068 |
-| Venezia | 0.1653 | +0.210 | +0.119 |
+| Bassano del Grappa | 0.1639 | +0.253 | +0.122 |
+| Conegliano | 0.1597 | +0.256 | +0.157 |
+| Vicenza | 0.1547 | +0.267 | +0.148 |
+| Padova | 0.1506 | +0.277 | +0.124 |
+| Venezia | 0.1558 | +0.255 | +0.163 |
 
 Full baselines, reliability curves, threshold sweeps and coefficients per location:
 **[`reports/REPORT.md`](reports/REPORT.md)**. Data-quality and stationarity work:
@@ -118,6 +138,12 @@ Other limits, stated rather than discovered later:
 - **One grid point per town**, not a spatial field. At the scale of a town that is a choice.
 - **Consecutive days are not independent.** The effective sample size is far smaller than the row
   count, and the confidence intervals are wider than they look.
+- **The 20 mm threshold is not published at Vicenza or Padova.** It fires on 3-5% of days — 106
+  examples at Padova — and it failed the stop criterion there. It was declared fragile before being
+  trained, and the artefact records the failure so the absence is documented rather than noticed.
+- **Sharper is slightly less calibrated.** The intra-day predictors raised resolution by about a
+  quarter and cost a little reliability (0.003 → 0.006). The net is clearly positive, but it is a
+  trade, not a free lunch.
 - **Gradient boosting scores slightly better at four of the five towns** (+0.011 on average). The
   linear model ships anyway — it is 17 numbers that run in a browser, and its coefficients are the
   finding above. The comparison is if anything unfair *to* boosting: the regression's
@@ -137,8 +163,8 @@ all five towns, appending to [`public/forecasts.jsonl`](public/forecasts.jsonl):
   "issued_at": "2026-08-19T21:04:11Z",   // committed before the day it forecasts
   "city": "vicenza",
   "target_date": "2026-08-20",
-  "our_prob": 0.36,
-  "our_rain": false,
+  "our_prob": 0.63,
+  "our_probs": { "1": 0.63, "5": 0.46, "10": 0.33, "20": 0.14 },
   "om_precip_mm": 3.4,                   // Open-Meteo's forecast, as reference
   "om_rain": true,
   "climatology": 0.29,
@@ -167,7 +193,8 @@ python src/fetch_weather.py --split test     --all   # everything after 2024
 
 # 2. models — refuses to ship one that misses the stop criterion
 pip install -r requirements.txt
-python src/train.py --all --ablation padova
+python src/train.py --all --thresholds --ablation padova
+python src/train.py --all --compare-features    # does the day's shape help?
 python src/stationarity.py --all
 python src/analyse_forecasts.py            # what the forecasts sound like, and how they fail
 

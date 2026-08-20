@@ -14,6 +14,8 @@ import math
 from datetime import date
 from pathlib import Path
 
+import config
+
 ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -31,32 +33,20 @@ def _sigmoid(z: float) -> float:
     return e / (1.0 + e)
 
 
-class Model:
-    """One location's model, loaded from its artefact."""
+class Threshold:
+    """One intensity threshold: its own coefficients, scaler and climatology."""
 
-    def __init__(self, payload: dict):
-        self.payload = payload
-        self.location = payload["location"]
-        self.features = payload["feature_names"]
-        self.coefficients = payload["coefficients"]
-        self.intercept = payload["intercept"]
-        self.mean = payload["scaler_mean"]
-        self.scale = payload["scaler_scale"]
-        self.threshold_mm = payload["threshold_mm"]
-        self.decision_threshold = payload["decision_threshold"]
-        self.monthly_climatology = {int(k): v for k, v in payload["monthly_climatology"].items()}
-        self.base_rate = payload["base_rate"]
-        self.reference_vectors = payload.get("reference_vectors", [])
-        self.version = f"lr-v{payload['schema_version']}@{payload['trained_at'][:10]}"
-
-    @classmethod
-    def load(cls, location_key: str) -> "Model":
-        path = ROOT / "models" / f"{location_key}.json"
-        if not path.is_file():
-            raise FileNotFoundError(
-                f"no model for {location_key!r} — run: python src/train.py --location {location_key}"
-            )
-        return cls(json.loads(path.read_text(encoding="utf-8")))
+    def __init__(self, block: dict, feature_names: list[str]):
+        self.mm = block["threshold_mm"]
+        self.features = feature_names
+        self.coefficients = block["coefficients"]
+        self.intercept = block["intercept"]
+        self.mean = block["scaler_mean"]
+        self.scale = block["scaler_scale"]
+        self.monthly_climatology = {int(k): v for k, v in block["monthly_climatology"].items()}
+        self.base_rate = block["base_rate"]
+        self.reference_vectors = block.get("reference_vectors", [])
+        self.shipped = block.get("shipped", True)
 
     def predict(self, features: dict[str, float]) -> float:
         z = self.intercept
@@ -69,20 +59,77 @@ class Model:
     def climatology(self, month: int) -> float:
         return self.monthly_climatology.get(month, self.base_rate)
 
+
+class Model:
+    """One location's models, loaded from its artefact.
+
+    Carries one logistic regression per intensity threshold. They are fitted
+    independently, so nothing stops P(>= 5 mm) coming out above P(>= 1 mm) on
+    some day — which is impossible, and would destroy the credibility of every
+    other number on the page. `predict_all` enforces the ordering.
+    """
+
+    def __init__(self, payload: dict):
+        self.payload = payload
+        self.location = payload["location"]
+        self.features = payload["feature_names"]
+        self.decision_threshold = payload["decision_threshold"]
+        self.version = f"lr-v{payload['schema_version']}@{payload['trained_at'][:10]}"
+
+        blocks = payload["thresholds"]
+        self.thresholds = {
+            float(k): Threshold(v, self.features) for k, v in blocks.items()
+        }
+        self.shipped_mm = sorted(mm for mm, t in self.thresholds.items() if t.shipped)
+        # the headline event, and the one the ledger has always recorded
+        self.primary = self.thresholds[min(self.thresholds)]
+        self.threshold_mm = self.primary.mm
+
+    @classmethod
+    def load(cls, location_key: str) -> "Model":
+        path = ROOT / "models" / f"{location_key}.json"
+        if not path.is_file():
+            raise FileNotFoundError(
+                f"no model for {location_key!r} — run: python src/train.py --all --thresholds"
+            )
+        return cls(json.loads(path.read_text(encoding="utf-8")))
+
+    def predict(self, features: dict[str, float]) -> float:
+        """The headline probability: at least 1 mm."""
+        return self.primary.predict(features)
+
+    def predict_all(self, features: dict[str, float]) -> dict[float, float]:
+        """Every shipped threshold, in order, with the ordering enforced.
+
+        Clamping downwards rather than upwards is deliberate: the lower
+        threshold is the better-estimated one (many more events), so where the
+        two disagree it is the one to trust.
+        """
+        out: dict[float, float] = {}
+        ceiling = 1.0
+        for mm in self.shipped_mm:
+            probability = min(self.thresholds[mm].predict(features), ceiling)
+            out[mm] = probability
+            ceiling = probability
+        return out
+
+    def climatology(self, month: int) -> float:
+        return self.primary.climatology(month)
+
     def self_check(self, tolerance: float = 1e-9) -> None:
         """Reproduce the training output on the stored reference vectors.
 
-        Cheap insurance against a silently mismatched artefact: if the feature
-        order, the scaler or the sigmoid ever drift, this fails immediately
-        rather than after weeks of quietly wrong forecasts.
+        Checks EVERY threshold, not just the headline one: a mismatch in the
+        10 mm model would otherwise go unnoticed until someone read the page.
         """
-        for i, case in enumerate(self.reference_vectors):
-            got = self.predict(case["features"])
-            if abs(got - case["expected_probability"]) > tolerance:
-                raise ValueError(
-                    f"{self.location['key']}: reference vector {i} gives {got}, "
-                    f"expected {case['expected_probability']}"
-                )
+        for mm, threshold in sorted(self.thresholds.items()):
+            for i, case in enumerate(threshold.reference_vectors):
+                got = threshold.predict(case["features"])
+                if abs(got - case["expected_probability"]) > tolerance:
+                    raise ValueError(
+                        f"{self.location['key']} at {mm:g} mm: reference vector {i} "
+                        f"gives {got}, expected {case['expected_probability']}"
+                    )
 
 
 def build_features(history: list[dict], target_day: date, threshold_mm: float) -> dict | None:
@@ -126,6 +173,10 @@ def build_features(history: list[dict], target_day: date, threshold_mm: float) -
         "wind_speed": today["wind_speed_kmh"],
         "sin_doy": math.sin(2 * math.pi * doy / 365.25),
         "cos_doy": math.cos(2 * math.pi * doy / 365.25),
+        # The shape of the day. Computed once at fetch time from the hourly
+        # series (src/sources.py:intraday_features) and carried in the CSV, so
+        # training and the daily run read exactly the same numbers.
+        **{name: today[name] for name in config.INTRADAY_FIELDS},
     }
 
 

@@ -19,16 +19,33 @@ import locations
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "docs" / "data" / "bundle.json"
-MAX_BUNDLE_KB = 200
+MAX_PAGE_KB = 200
 
-# what the browser needs to reproduce the model, and nothing more
-MODEL_FIELDS = (
-    "feature_names", "coefficients", "intercept", "scaler_mean", "scaler_scale",
-    "monthly_climatology", "base_rate", "threshold_mm", "decision_threshold",
-    "trained_at", "train_window", "validation_window", "test_window",
-    "regularization_C", "reference_vectors", "test_comparison", "reliability",
-    "brier_decomposition", "threshold_sweep", "stop_criterion", "test_metrics",
+# What the browser needs to reproduce the model, and nothing more.
+LOCATION_FIELDS = (
+    "feature_names", "feature_set", "decision_threshold", "trained_at",
+    "train_window", "validation_window", "test_window", "shipped_thresholds",
 )
+# Every threshold needs enough to run and to verify itself.
+THRESHOLD_FIELDS = (
+    "threshold_mm", "coefficients", "intercept", "scaler_mean", "scaler_scale",
+    "monthly_climatology", "base_rate", "regularization_C", "reference_vectors",
+    "reliability", "stop_criterion", "test_metrics", "shipped",
+)
+# Only the headline threshold needs the material behind the evidence sections:
+# the baseline ladder and the decision-threshold table are shown once, not four
+# times. Carrying them for all four pushed the page over its own weight budget.
+PRIMARY_ONLY_FIELDS = ("test_comparison", "brier_decomposition", "threshold_sweep")
+# Two reference vectors prove the browser reproduces Python just as well as five
+# do, at 25 features each across four thresholds and five towns.
+REFERENCE_VECTORS_KEPT = 2
+
+
+def _threshold(block: dict, primary: bool) -> dict:
+    fields = THRESHOLD_FIELDS + (PRIMARY_ONLY_FIELDS if primary else ())
+    out = {k: block[k] for k in fields if k in block}
+    out["reference_vectors"] = block.get("reference_vectors", [])[:REFERENCE_VECTORS_KEPT]
+    return out
 
 
 def build() -> dict:
@@ -38,6 +55,7 @@ def build() -> dict:
         if not path.is_file():
             raise SystemExit(f"missing {path.name} — run src/train.py --all first")
         artefact = json.loads(path.read_text(encoding="utf-8"))
+        primary_key = min(artefact["thresholds"], key=float)
         cities.append(
             {
                 "key": location.key,
@@ -45,7 +63,11 @@ def build() -> dict:
                 "lat": location.lat,
                 "lon": location.lon,
                 "note": location.note,
-                **{k: artefact[k] for k in MODEL_FIELDS if k in artefact},
+                **{k: artefact[k] for k in LOCATION_FIELDS if k in artefact},
+                "thresholds": {
+                    mm: _threshold(block, primary=(mm == primary_key))
+                    for mm, block in artefact["thresholds"].items()
+                },
             }
         )
 
@@ -74,12 +96,23 @@ def main() -> int:
     print(f"wrote {OUT.relative_to(ROOT)}  ({size_kb:.0f} KB)")
     print(f"  {len(bundle['cities'])} locations, {len(bundle['ledger'])} ledger records")
 
-    # The page promises to stay light. Enforced, so the promise cannot rot as
-    # the ledger grows.
-    if size_kb > MAX_BUNDLE_KB:
-        print(f"\nFAILED: bundle is {size_kb:.0f} KB, over the {MAX_BUNDLE_KB} KB budget.\n"
-              "The ledger has probably outgrown inline embedding and needs paging.",
-              file=sys.stderr)
+    # The page promises to stay light, and the promise is about the PAGE, not
+    # about one file inside it. Enforced here so it cannot rot as the ledger
+    # grows or as thresholds are added.
+    page = ROOT / "docs"
+    total_kb = sum(
+        f.stat().st_size
+        for pattern in ("*.html", "css/*.css", "js/*.js", "data/*.json")
+        for f in page.glob(pattern)
+    ) / 1024
+    print(f"  whole page: {total_kb:.0f} KB of {MAX_PAGE_KB} KB budget")
+
+    if total_kb > MAX_PAGE_KB:
+        print(
+            f"FAILED: the page is {total_kb:.0f} KB, over the {MAX_PAGE_KB} KB budget. "
+            "Trim what the bundle carries, or page the ledger.",
+            file=sys.stderr,
+        )
         return 1
     return 0
 

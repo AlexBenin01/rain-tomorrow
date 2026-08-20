@@ -24,11 +24,13 @@ export const STRINGS = {
       "forecast can only exist once a day has ended. It runs every evening around 23:00 " +
       "Italian time — which is when tomorrow appears. Today's forecast stays on the page " +
       "until the day is over and it can be scored.",
-    "live.threshold": "probability of at least 1&nbsp;mm",
-    "live.openmeteo": "Open-Meteo",
-    "live.climatology": "normal for the month",
-    "live.willRain": "rain expected",
-    "live.wontRain": "no rain expected",
+    "live.threshold": "of at least 1&nbsp;mm",
+    "live.vsNormal": "{ratio}× the {month} normal of {clim}",
+    "live.atNormal": "about the {month} normal of {clim}",
+    "live.ladder": "how much",
+    "live.atLeast": "at least",
+    "live.notShipped": "not published here — see below",
+    "live.openmeteo": "Open-Meteo forecasts",
     "live.stale":
       "⚠ These forecasts are more than two days old. The daily job may have stopped.",
     "live.empty": "No forecasts published yet.",
@@ -77,6 +79,22 @@ export const STRINGS = {
       "expressed as a calibrated probability, turns into real skill. Having the right " +
       "predictor is not enough; it has to be expressed as a probability.",
 
+    "cut.heading": "Why there is no yes-or-no here",
+    "cut.intro":
+      "It is tempting to turn the number into a verdict at 50%. On an event that " +
+      "happens about 30% of the time, that is the wrong place to cut — and it is " +
+      "how a forecast gets called wrong when it was right.",
+    "cut.table":
+      "The same model, on the same 588 days, judged at different cut-offs:",
+    "cut.threshold": "cut-off",
+    "cut.pod": "rain days caught",
+    "cut.far": "false alarms",
+    "cut.csi": "overall",
+    "cut.punchline":
+      "At 50% the model catches fewer than half the rainy days. At 30% it catches " +
+      "three quarters, and that is where the overall score peaks. Which cut-off is " +
+      "right depends on what a miss costs you compared to a false alarm — so the " +
+      "page shows the probability and leaves the choice where it belongs.",
     "reliability.heading": "Does 70% mean 70%?",
     "reliability.intro":
       "A probability is only honest if it verifies. Each point compares what the model " +
@@ -138,8 +156,8 @@ export const STRINGS = {
 
     "check.running": "verifying the model in your browser…",
     "check.ok":
-      "✓ This page recomputed the model from its {n} coefficients and reproduced the " +
-      "Python training output exactly, on {v} reference cases, for all five towns.",
+      "✓ This page recomputed all {m} models from their {n} coefficients each and " +
+      "reproduced the Python training output exactly, on {v} reference cases.",
     "check.fail": "✗ The browser model does not match the training output: {err}",
     "footer.repo": "Source and data",
     "footer.report": "Full verification report",
@@ -166,11 +184,13 @@ export const STRINGS = {
       "osservazioni, quindi una previsione nuova può nascere solo quando un giorno è " +
       "finito. Gira ogni sera verso le 23:00, ed è lì che compare domani. Quella di oggi " +
       "resta in pagina finché il giorno non è concluso e si può valutarla.",
-    "live.threshold": "probabilità di almeno 1&nbsp;mm",
-    "live.openmeteo": "Open-Meteo",
-    "live.climatology": "normale del mese",
-    "live.willRain": "pioggia prevista",
-    "live.wontRain": "pioggia non prevista",
+    "live.threshold": "di almeno 1&nbsp;mm",
+    "live.vsNormal": "{ratio} volte la norma di {month}, che è {clim}",
+    "live.atNormal": "in linea con la norma di {month}, che è {clim}",
+    "live.ladder": "quanta",
+    "live.atLeast": "almeno",
+    "live.notShipped": "non pubblicata qui — vedi sotto",
+    "live.openmeteo": "Open-Meteo prevede",
     "live.stale":
       "⚠ Queste previsioni hanno più di due giorni. Il processo quotidiano potrebbe essersi fermato.",
     "live.empty": "Nessuna previsione ancora pubblicata.",
@@ -220,6 +240,23 @@ export const STRINGS = {
       "espressa come probabilità calibrata, diventa skill vero. Avere il predittore " +
       "giusto non basta: bisogna esprimerlo come probabilità.",
 
+    "cut.heading": "Perché qui non trovi un sì o un no",
+    "cut.intro":
+      "Viene voglia di trasformare il numero in un verdetto tagliando al 50%. Su un " +
+      "evento che capita circa il 30% delle volte, quello è il punto sbagliato dove " +
+      "tagliare — ed è così che una previsione giusta viene giudicata sbagliata.",
+    "cut.table":
+      "Lo stesso modello, sugli stessi 588 giorni, giudicato con tagli diversi:",
+    "cut.threshold": "taglio",
+    "cut.pod": "piogge intercettate",
+    "cut.far": "falsi allarmi",
+    "cut.csi": "complessivo",
+    "cut.punchline":
+      "Al 50% il modello intercetta meno della metà dei giorni di pioggia. Al 30% ne " +
+      "prende tre quarti, ed è lì che il punteggio complessivo ha il massimo. Quale " +
+      "taglio sia quello giusto dipende da quanto ti costa una pioggia non vista " +
+      "rispetto a un allarme a vuoto — quindi la pagina mostra la probabilità e " +
+      "lascia la scelta a chi la deve fare.",
     "reliability.heading": "Il 70% è davvero il 70%?",
     "reliability.intro":
       "Una probabilità è onesta solo se si verifica. Ogni punto confronta quello che il " +
@@ -284,9 +321,9 @@ export const STRINGS = {
 
     "check.running": "verifica del modello nel tuo browser…",
     "check.ok":
-      "✓ Questa pagina ha ricalcolato il modello dai suoi {n} coefficienti e ha riprodotto " +
-      "esattamente l'uscita del training Python, su {v} casi di riferimento, per tutte e " +
-      "cinque le città.",
+      "✓ Questa pagina ha ricalcolato tutti i {m} modelli dai loro {n} coefficienti " +
+      "ciascuno, riproducendo esattamente l'uscita del training Python su {v} casi di " +
+      "riferimento.",
     "check.fail": "✗ Il modello nel browser non coincide con l'uscita del training: {err}",
     "footer.repo": "Codice e dati",
     "footer.report": "Report di verifica completo",

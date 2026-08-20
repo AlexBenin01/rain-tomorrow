@@ -1,7 +1,7 @@
-// The model, in the browser. The same 17 coefficients Python used.
+// The models, in the browser. The same coefficients Python used.
 //
 // This file exists to make one claim checkable rather than merely stated: the
-// page recomputes the model from the published artefact and compares against
+// page recomputes every model from the published artefact and compares against
 // reference cases produced by the training run. If the feature order, the
 // standardisation or the sigmoid ever drift apart, the page says so at the
 // bottom instead of quietly showing different numbers.
@@ -15,32 +15,70 @@ export function sigmoid(z) {
   return e / (1 + e);
 }
 
-export function predict(city, features) {
-  let z = city.intercept;
+export function predictThreshold(city, block, features) {
+  let z = block.intercept;
   for (let i = 0; i < city.feature_names.length; i++) {
     const name = city.feature_names[i];
-    const scale = city.scaler_scale[i] || 1;
-    z += city.coefficients[i] * ((features[name] - city.scaler_mean[i]) / scale);
+    const scale = block.scaler_scale[i] || 1;
+    z += block.coefficients[i] * ((features[name] - block.scaler_mean[i]) / scale);
   }
   return sigmoid(z);
 }
 
-// Reproduce the training output on the stored reference vectors.
-// Returns { ok, cases, coefficients, error }.
+// Thresholds a town actually publishes, lowest first. A threshold that failed
+// the stop criterion during training is present in the artefact but not shipped,
+// so the reason it is missing stays in the file rather than in someone's memory.
+export function shippedThresholds(city) {
+  return Object.keys(city.thresholds)
+    .filter((mm) => city.thresholds[mm].shipped)
+    .map(Number)
+    .sort((a, b) => a - b);
+}
+
+export function primaryThreshold(city) {
+  return shippedThresholds(city)[0];
+}
+
+// The ladder, with the ordering enforced.
+//
+// The four models are fitted independently, so nothing stops P(>= 5 mm) coming
+// out above P(>= 1 mm) on a given day — which is impossible, and happens on
+// about 7% of days. Clamping downwards is deliberate: the lower threshold has
+// far more events behind it, so where two disagree it is the one to trust.
+// Measured cost of the clamp: none, to five decimal places.
+export function predictLadder(city, features) {
+  const out = new Map();
+  let ceiling = 1;
+  for (const mm of shippedThresholds(city)) {
+    const p = Math.min(predictThreshold(city, city.thresholds[mm], features), ceiling);
+    out.set(mm, p);
+    ceiling = p;
+  }
+  return out;
+}
+
+// Reproduce the training output on the stored reference vectors, for EVERY
+// threshold — a mismatch in the 10 mm model would otherwise go unnoticed until
+// somebody read the page.
 export function selfCheck(cities, tolerance = 1e-9) {
   let cases = 0;
+  let models = 0;
   for (const city of cities) {
-    for (const [i, reference] of (city.reference_vectors || []).entries()) {
-      const got = predict(city, reference.features);
-      const want = reference.expected_probability;
-      if (Math.abs(got - want) > tolerance) {
-        return {
-          ok: false,
-          error: `${city.key} case ${i}: ${got.toPrecision(12)} vs ${want.toPrecision(12)}`
-        };
+    for (const [mm, block] of Object.entries(city.thresholds)) {
+      models++;
+      for (const [i, reference] of (block.reference_vectors || []).entries()) {
+        const got = predictThreshold(city, block, reference.features);
+        const want = reference.expected_probability;
+        if (Math.abs(got - want) > tolerance) {
+          return {
+            ok: false,
+            error: `${city.key} at ${mm} mm, case ${i}: ` +
+              `${got.toPrecision(12)} vs ${want.toPrecision(12)}`
+          };
+        }
+        cases++;
       }
-      cases++;
     }
   }
-  return { ok: true, cases, coefficients: cities[0].feature_names.length };
+  return { ok: true, cases, models, coefficients: cities[0].feature_names.length };
 }

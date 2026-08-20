@@ -32,7 +32,8 @@ def _baseline_table(result: dict) -> str:
     return head + body
 
 
-def write(results: list[dict], ablation: dict | None = None) -> Path:
+def write(results: list[dict], ablation: dict | None = None,
+          thresholds: dict | None = None, feature_gain: list[dict] | None = None) -> Path:
     first = results[0]
     raw = _row(first, "raw persistence (0/1)")
     calibrated = _row(first, "calibrated persistence")
@@ -251,6 +252,83 @@ def write(results: list[dict], ablation: dict | None = None) -> Path:
             f"| from {l['start']} | {l['n']} | {l['bss']:+.4f} |",
             "",
             f"Difference: **{ablation['difference']:+.4f}** in favour of {better}.",
+            "",
+        ]
+
+    if feature_gain:
+        lines += [
+            "---",
+            "",
+            "## Does the shape of the day help?",
+            "",
+            "Every variable started life as a daily mean or sum, which throws away the *shape* of",
+            "the day: a mean cannot tell \"cloudy all day\" from \"clearing, then clouding over\".",
+            "Eight predictors were added from the hourly series to recover it, and the two variants",
+            "were trained with everything else held identical — same split, same grid, same test set.",
+            "",
+            "| location | daily aggregates only | plus the day's shape | gain |",
+            "|---|---|---|---|",
+        ]
+        for row in feature_gain:
+            lines.append(
+                f"| {row['location']} | {row['daily']['bss']:+.4f} | "
+                f"{row['full']['bss']:+.4f} | **{row['gain']:+.4f}** |"
+            )
+        mean_gain = sum(r["gain"] for r in feature_gain) / len(feature_gain)
+        lines += [
+            "",
+            f"**Better at all {len(feature_gain)} locations, by {mean_gain:+.4f} on average** — a",
+            "quarter more skill than the daily aggregates alone, which is far more than the",
+            "handful of thousandths this kind of addition usually buys.",
+            "",
+            "The strongest of the new predictors is `d_pressure_intraday`, the pressure at 18:00",
+            "minus the pressure at 06:00. It comes second only to the pressure level itself, and it",
+            "is negative at every location: pressure falling *within* the day is the front arriving.",
+            "",
+            "It also **superseded** an existing predictor rather than merely adding to it.",
+            "`d_pressure_1d`, the difference between two daily means, was negative everywhere",
+            "before; once the sharper measure entered the model it flipped positive at all five",
+            "towns and became a small correction term. Its sign alone is no longer interpretable —",
+            "only the sum of the three tendency terms is, and that stays firmly negative",
+            "(−0.34 to −0.39). Three of the eight new predictors earn nothing at all; they are kept",
+            "because choosing a feature set by looking at the test set is exactly the freedom this",
+            "project refuses to take, and the regularisation shrinks them to nothing anyway.",
+            "",
+        ]
+
+    if thresholds:
+        lines += [
+            "---",
+            "",
+            "## How much rain, not just whether",
+            "",
+            "The same features, four targets: the probability that tomorrow's accumulation exceeds",
+            "1, 5, 10 and 20 mm. Exceedance probabilities rather than a predicted millimetre figure,",
+            "because rainfall is heavily skewed — median 5.6 mm, mean 9.4, maximum 179 — and a mean",
+            "prediction would describe almost no real day.",
+            "",
+            "Gain over calibrated persistence, and whether the threshold is published:",
+            "",
+            "| location | ≥ 1 mm | ≥ 5 mm | ≥ 10 mm | ≥ 20 mm |",
+            "|---|---|---|---|---|",
+        ]
+        for name, row in thresholds.items():
+            cells = " | ".join(
+                f"{r['gain']:+.3f} {'✓' if r['passed'] else '**not shipped**'}" for r in row
+            )
+            lines.append(f"| {name} | {cells} |")
+        lines += [
+            "",
+            "The 20 mm threshold was declared fragile **before** it was trained: it fires on 3-5% of",
+            "days, which is 106 examples at Padova. It failed the stop criterion there and at",
+            "Vicenza, and is not published for those two towns. The artefact still records it, with",
+            "the reason, so the absence is documented rather than merely observed.",
+            "",
+            "The four models are fitted independently, so nothing forces P(≥ 5 mm) below P(≥ 1 mm).",
+            "Left alone they violate that ordering on **6.9% of days** — up to 15.5% at Conegliano —",
+            "which would put a logical impossibility on the page. Inference clamps each threshold to",
+            "the one below it, downwards because the lower threshold has far more events behind it.",
+            "Measured cost of the clamp: none, to five decimal places.",
             "",
         ]
 

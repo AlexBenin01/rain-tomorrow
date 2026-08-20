@@ -17,18 +17,18 @@ Everything below is measured on the held-out test set: ~587 days per town, all a
 
 | town | base rate | mean forecast | spread | vs climatology spread | says ≥60% | says ≤15% |
 |---|---|---|---|---|---|---|
-| Bassano del Grappa | 33% | 33% | 0.206 | 0.095 | 16% | 22% |
-| Conegliano | 31% | 31% | 0.209 | 0.094 | 14% | 28% |
-| Vicenza | 30% | 33% | 0.202 | 0.089 | 14% | 22% |
-| Padova | 30% | 30% | 0.210 | 0.079 | 12% | 29% |
-| Venezia | 30% | 27% | 0.218 | 0.074 | 11% | 40% |
+| Bassano del Grappa | 32% | 32% | 0.223 | 0.095 | 14% | 28% |
+| Conegliano | 31% | 30% | 0.224 | 0.094 | 13% | 34% |
+| Vicenza | 30% | 31% | 0.231 | 0.089 | 15% | 32% |
+| Padova | 30% | 29% | 0.235 | 0.079 | 14% | 38% |
+| Venezia | 30% | 26% | 0.230 | 0.074 | 12% | 45% |
 
-The forecasts are about **2.4× more spread out than monthly climatology**. A model
+The forecasts are about **2.7× more spread out than monthly climatology**. A model
 that had learned nothing useful would collapse towards the seasonal average, because that
 is the safest thing to say; this one moves away from it on roughly half of all days.
 
 It also never claims certainty. Across all five towns the highest probability ever issued
-is **89%** and the lowest is **1%**. There is no day on which it says
+is **98%** and the lowest is **1%**. There is no day on which it says
 "definitely" — which is correct for a statistical model working one day ahead.
 
 ---
@@ -37,11 +37,11 @@ is **89%** and the lowest is **1%**. There is no day on which it says
 
 | town | after a wet day it says | it then rains | after a dry day it says | it then rains |
 |---|---|---|---|---|
-| Bassano del Grappa | 56% | 57% | 22% | 21% |
-| Conegliano | 55% | 53% | 21% | 21% |
-| Vicenza | 56% | 54% | 23% | 20% |
-| Padova | 54% | 57% | 20% | 18% |
-| Venezia | 53% | 51% | 16% | 21% |
+| Bassano del Grappa | 56% | 57% | 21% | 21% |
+| Conegliano | 53% | 53% | 20% | 21% |
+| Vicenza | 55% | 54% | 21% | 20% |
+| Padova | 53% | 57% | 19% | 18% |
+| Venezia | 51% | 51% | 16% | 21% |
 
 Nobody encoded a Markov chain. The model learned the persistence structure from the data
 and — more importantly — learned it *calibrated*: what it says after a wet day is within a
@@ -55,13 +55,13 @@ Brier Skill Score against monthly climatology, by season:
 
 | town | winter | spring | summer | autumn |
 |---|---|---|---|---|
-| Bassano del Grappa | +0.081 | +0.321 | +0.182 | +0.206 |
-| Conegliano | +0.196 | +0.292 | +0.117 | +0.167 |
-| Vicenza | +0.108 | +0.331 | +0.203 | +0.200 |
-| Padova | +0.096 | +0.302 | +0.262 | +0.157 |
-| Venezia | +0.190 | +0.253 | +0.206 | +0.207 |
+| Bassano del Grappa | +0.116 | +0.360 | +0.217 | +0.311 |
+| Conegliano | +0.246 | +0.335 | +0.139 | +0.261 |
+| Vicenza | +0.147 | +0.394 | +0.249 | +0.250 |
+| Padova | +0.125 | +0.362 | +0.308 | +0.260 |
+| Venezia | +0.231 | +0.290 | +0.229 | +0.310 |
 
-**Spring is where the model earns its keep** — +0.300 on average against +0.134 in winter, and the ordering holds at every single town.
+**Spring is where the model earns its keep** — +0.348 on average against +0.173 in winter, and the ordering holds at every single town.
 
 The reason is physical rather than statistical. Spring rain in the Veneto arrives with
 identifiable synoptic setups: pressure falling, cloud building, warm moist air drawn in
@@ -75,11 +75,11 @@ about tomorrow.
 
 | town | loudest false alarm | worst miss |
 |---|---|---|
-| Bassano del Grappa | 2026-01-29: said 87%, got 0.3 mm | 2025-08-23: said 40%, got 31.3 mm |
-| Conegliano | 2026-02-20: said 83%, got 0.1 mm | 2025-02-26: said 44%, got 41.7 mm |
-| Vicenza | 2026-01-29: said 85%, got 0.0 mm | 2026-01-28: said 44%, got 28.2 mm |
-| Padova | 2026-02-13: said 89%, got 0.0 mm | 2025-05-05: said 43%, got 31.0 mm |
-| Venezia | 2026-02-13: said 88%, got 0.0 mm | 2025-05-05: said 28%, got 38.1 mm |
+| Bassano del Grappa | 2025-10-24: said 96%, got 0.1 mm | 2025-08-23: said 34%, got 31.3 mm |
+| Conegliano | 2025-10-24: said 97%, got 0.3 mm | 2025-02-26: said 50%, got 41.7 mm |
+| Vicenza | 2026-01-29: said 96%, got 0.0 mm | 2025-04-25: said 36%, got 23.1 mm |
+| Padova | 2025-10-24: said 97%, got 0.1 mm | 2026-06-02: said 48%, got 22.3 mm |
+| Venezia | 2025-10-24: said 98%, got 0.5 mm | 2025-10-05: said 44%, got 31.5 mm |
 
 The failure mode is consistent and worth stating plainly: **the model misses sudden heavy
 rain that arrives out of a quiet day.** It reads yesterday's conditions at one point, so a
@@ -100,11 +100,11 @@ suggests. The autocorrelation caveat applies in space as well as in time.
 
 | town | reliability (lower better) | resolution (higher better) |
 |---|---|---|
-| Bassano del Grappa | 0.0040 | 0.0490 |
-| Conegliano | 0.0053 | 0.0490 |
-| Vicenza | 0.0029 | 0.0475 |
-| Padova | 0.0052 | 0.0507 |
-| Venezia | 0.0042 | 0.0483 |
+| Bassano del Grappa | 0.0059 | 0.0608 |
+| Conegliano | 0.0086 | 0.0612 |
+| Vicenza | 0.0047 | 0.0611 |
+| Padova | 0.0081 | 0.0646 |
+| Venezia | 0.0068 | 0.0604 |
 
 Reliability sits between 0.003 and 0.006 everywhere: when the model says 30%, it rains
 close to 30% of the time. The one weak spot is the 80–100% band, where it is
