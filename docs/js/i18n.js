@@ -14,14 +14,21 @@ export const STRINGS = {
       "Weather data from Open-Meteo (CC BY 4.0), ERA5 reanalysis of the Copernicus " +
       "Climate Change Service at ECMWF.",
 
-    "live.heading": "Tomorrow",
-    "live.for": "for",
+    "live.section": "The forecasts on the table",
+    "live.heading.tomorrow": "Tomorrow",
+    "live.heading.today": "Today",
+    "live.heading.past": "Awaiting verification",
+    "live.issued": "issued",
+    "live.cadence":
+      "The model forecasts one day ahead from the last complete day of observations, so a new " +
+      "forecast can only exist once a day has ended. It runs every evening around 23:00 " +
+      "Italian time — which is when tomorrow appears. Today's forecast stays on the page " +
+      "until the day is over and it can be scored.",
     "live.threshold": "probability of at least 1&nbsp;mm",
     "live.openmeteo": "Open-Meteo",
     "live.climatology": "normal for the month",
     "live.willRain": "rain expected",
     "live.wontRain": "no rain expected",
-    "live.updated": "Forecasts issued",
     "live.stale":
       "⚠ These forecasts are more than two days old. The daily job may have stopped.",
     "live.empty": "No forecasts published yet.",
@@ -149,14 +156,21 @@ export const STRINGS = {
       "Dati meteo Open-Meteo (CC BY 4.0), rianalisi ERA5 del Copernicus Climate " +
       "Change Service presso ECMWF.",
 
-    "live.heading": "Domani",
-    "live.for": "per",
+    "live.section": "Le previsioni in corso",
+    "live.heading.tomorrow": "Domani",
+    "live.heading.today": "Oggi",
+    "live.heading.past": "In attesa di verifica",
+    "live.issued": "emessa il",
+    "live.cadence":
+      "Il modello prevede un giorno avanti a partire dall'ultimo giorno completo di " +
+      "osservazioni, quindi una previsione nuova può nascere solo quando un giorno è " +
+      "finito. Gira ogni sera verso le 23:00, ed è lì che compare domani. Quella di oggi " +
+      "resta in pagina finché il giorno non è concluso e si può valutarla.",
     "live.threshold": "probabilità di almeno 1&nbsp;mm",
     "live.openmeteo": "Open-Meteo",
     "live.climatology": "normale del mese",
     "live.willRain": "pioggia prevista",
     "live.wontRain": "pioggia non prevista",
-    "live.updated": "Previsioni emesse il",
     "live.stale":
       "⚠ Queste previsioni hanno più di due giorni. Il processo quotidiano potrebbe essersi fermato.",
     "live.empty": "Nessuna previsione ancora pubblicata.",

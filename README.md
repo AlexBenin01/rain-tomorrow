@@ -66,7 +66,25 @@ the 24-hour pressure tendency, wind direction, cloud cover. Skill rose consisten
 
 Full baselines, reliability curves, threshold sweeps and coefficients per location:
 **[`reports/REPORT.md`](reports/REPORT.md)**. Data-quality and stationarity work:
-**[`reports/METHOD_NOTES.md`](reports/METHOD_NOTES.md)**.
+**[`reports/METHOD_NOTES.md`](reports/METHOD_NOTES.md)**. What the forecasts actually sound like,
+and how they fail: **[`reports/FORECAST_ANALYSIS.md`](reports/FORECAST_ANALYSIS.md)**.
+
+### What the forecasts sound like
+
+The model **commits rather than hedging**: its forecasts are 2.4× more spread out than monthly
+climatology, and it moves more than 15 points away from the seasonal normal on about half of all
+days. It also never claims certainty — across five towns and 587 days the highest probability ever
+issued is 89% and the lowest is 2%.
+
+**Skill is not the same all year.** Spring averages **+0.300** BSS against **+0.134** in winter, and
+the ordering holds at every single town. Spring rain here arrives with identifiable synoptic setups —
+falling pressure, building cloud, warm moist air from the south and east — which are exactly the
+predictors the model has. Winter rain is more often slow and persistent, and yesterday's point
+observations say less about it.
+
+The failure mode is consistent: **it misses sudden heavy rain out of a quiet day**. And the bad days
+repeat across towns — the same dates recur in every column — so they are not independent mistakes
+but one synoptic situation fooling the model everywhere at once.
 
 ### Nobody told it about weather
 
@@ -151,6 +169,7 @@ python src/fetch_weather.py --split test     --all   # everything after 2024
 pip install -r requirements.txt
 python src/train.py --all --ablation padova
 python src/stationarity.py --all
+python src/analyse_forecasts.py            # what the forecasts sound like, and how they fail
 
 # 3. tests — no database, no network
 pip install pytest && python -m pytest tests -q
@@ -172,7 +191,7 @@ src/        fetch, train, metrics, stationarity, daily run, ledger, site build
 data/       the CSVs everything is built from
 models/     one self-contained artefact per town
 public/     forecasts.jsonl — the ledger
-reports/    REPORT.md, METHOD_NOTES.md, stationarity.json
+reports/    REPORT.md, METHOD_NOTES.md, FORECAST_ANALYSIS.md, stationarity.json
 docs/       the published page (GitHub Pages)
 tests/      pytest, plus the DOM render check
 ```

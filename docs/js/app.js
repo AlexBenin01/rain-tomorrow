@@ -50,60 +50,75 @@ function renderStatic() {
 // --------------------------------------------------------------------------
 // Tomorrow
 // --------------------------------------------------------------------------
-function latestForecasts() {
-  const pending = bundle.ledger.filter((r) => r.observed_rain === null);
-  if (!pending.length) return { target: null, rows: [] };
-  const target = pending.map((r) => r.target_date).sort().at(-1);
-  return { target, rows: pending.filter((r) => r.target_date === target) };
+// Every forecast still awaiting its outcome, grouped by the day it is about.
+// There are normally two: today's, issued last night, and tomorrow's, issued
+// this evening. Both stay on the page — today's is the one you can act on,
+// tomorrow's is the one that is still a prediction.
+function pendingByDay() {
+  const groups = new Map();
+  for (const record of bundle.ledger) {
+    if (record.observed_rain !== null) continue;
+    if (!groups.has(record.target_date)) groups.set(record.target_date, []);
+    groups.get(record.target_date).push(record);
+  }
+  return [...groups.entries()].sort(([a], [b]) => a.localeCompare(b));
 }
 
 function renderLive() {
   const box = $("live-body");
-  const { target, rows } = latestForecasts();
   box.innerHTML = "";
+  const groups = pendingByDay();
 
-  if (!rows.length) {
+  if (!groups.length) {
     box.innerHTML = `<p class="muted">${t("live.empty")}</p>`;
+    $("live-updated").textContent = "";
     return;
   }
 
-  $("live-date").textContent = `${t("live.for")} ${formatDate(target)}`;
-
   const byKey = Object.fromEntries(bundle.cities.map((c) => [c.key, c]));
-  const list = document.createElement("div");
-  list.className = "city-list";
+  for (const [target, rows] of groups) {
+    const block = document.createElement("div");
+    block.className = "day-block";
+    const when = relativeDay(target);
+    block.innerHTML =
+      `<h3 class="day-heading ${when}">${t(`live.heading.${when}`)}` +
+      `<span class="subtle"> ${formatDate(target)}</span></h3>`;
 
-  for (const city of bundle.cities) {
-    const record = rows.find((r) => r.city === city.key);
-    if (!record) continue;
-    const card = document.createElement("article");
-    card.className = "city-card";
-    card.innerHTML = `
-      <div class="city-head">
-        <h3>${byKey[record.city].name}</h3>
-        <span class="verdict ${record.our_rain ? "wet" : "dry"}">
-          ${record.our_rain ? t("live.willRain") : t("live.wontRain")}
-        </span>
-      </div>
-      <div class="city-prob"><strong>${pct(record.our_prob)}</strong>
-        <span class="muted">${t("live.threshold")}</span></div>
-      <div class="city-meter"></div>
-      <dl class="city-detail">
-        <div><dt>${t("live.climatology")}</dt><dd>${pct(record.climatology)}</dd></div>
-        <div><dt>${t("live.openmeteo")}</dt>
-          <dd>${record.om_precip_mm === null ? "—" : `${record.om_precip_mm.toFixed(1)} mm`}</dd></div>
-      </dl>`;
-    card.querySelector(".city-meter")
-      .appendChild(probabilityMeter(record.our_prob, record.climatology));
-    list.appendChild(card);
+    const list = document.createElement("div");
+    list.className = "city-list";
+    for (const city of bundle.cities) {
+      const record = rows.find((r) => r.city === city.key);
+      if (!record) continue;
+      const card = document.createElement("article");
+      card.className = "city-card";
+      card.innerHTML = `
+        <div class="city-head">
+          <h4>${byKey[record.city].name}</h4>
+          <span class="verdict ${record.our_rain ? "wet" : "dry"}">
+            ${record.our_rain ? t("live.willRain") : t("live.wontRain")}
+          </span>
+        </div>
+        <div class="city-prob"><strong>${pct(record.our_prob)}</strong>
+          <span class="muted">${t("live.threshold")}</span></div>
+        <div class="city-meter"></div>
+        <dl class="city-detail">
+          <div><dt>${t("live.climatology")}</dt><dd>${pct(record.climatology)}</dd></div>
+          <div><dt>${t("live.openmeteo")}</dt>
+            <dd>${record.om_precip_mm === null ? "—" : `${record.om_precip_mm.toFixed(1)} mm`}</dd></div>
+        </dl>`;
+      card.querySelector(".city-meter")
+        .appendChild(probabilityMeter(record.our_prob, record.climatology));
+      list.appendChild(card);
+    }
+    block.appendChild(list);
+    box.appendChild(block);
   }
-  box.appendChild(list);
 
-  const issued = rows[0].issued_at.slice(0, 10);
-  $("live-updated").textContent = `${t("live.updated")} ${formatDate(issued)}`;
+  const newest = groups.at(-1)[1][0];
+  $("live-updated").textContent = `${t("live.issued")} ${formatDateTime(newest.issued_at)}`;
 
   // A schedule that stops is invisible unless the page says so.
-  const ageDays = (Date.now() - Date.parse(rows[0].issued_at)) / 86400000;
+  const ageDays = (Date.now() - Date.parse(newest.issued_at)) / 86400000;
   $("live-stale").hidden = ageDays <= 2;
   $("live-stale").textContent = t("live.stale");
 }
@@ -294,6 +309,21 @@ function signed(value, digits = 3) {
 
 function signedPct(value) {
   return `${value >= 0 ? "+" : "−"}${Math.abs(value * 100).toFixed(1)}`;
+}
+
+// "today" / "tomorrow" / "past", relative to the reader's own date.
+function relativeDay(iso) {
+  const midnight = new Date();
+  midnight.setHours(0, 0, 0, 0);
+  const days = Math.round((new Date(`${iso}T00:00:00`) - midnight) / 86400000);
+  if (days <= -1) return "past";
+  return days === 0 ? "today" : "tomorrow";
+}
+
+function formatDateTime(iso) {
+  return new Date(iso).toLocaleString(lang === "it" ? "it-IT" : "en-GB", {
+    day: "numeric", month: "long", hour: "2-digit", minute: "2-digit"
+  });
 }
 
 function formatDate(iso) {

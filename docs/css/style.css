@@ -195,3 +195,16 @@ a { color: var(--accent); }
   .city-prob strong { font-size: 1.7rem; }
 }
 .diagonal-label { fill: var(--muted); font-size: 9.5px; opacity: 0.85; }
+
+/* --- one block per forecast day --- */
+.day-block + .day-block { margin-top: 22px; }
+.day-heading {
+  font-size: 0.92rem;
+  margin: 0 0 10px;
+  padding-bottom: 5px;
+  border-bottom: 1px solid var(--border);
+}
+.day-heading.today { color: var(--text); }
+.day-heading.tomorrow { color: var(--accent); }
+.day-heading.past { color: var(--muted); }
+.city-card h4 { font-size: 0.95rem; margin: 0; font-weight: 600; }

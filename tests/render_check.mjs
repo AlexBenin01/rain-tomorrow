@@ -56,6 +56,29 @@ console.log("righe coefficienti  :", d.querySelectorAll("#physics-table tbody tr
 console.log("auto-verifica       :", d.getElementById("self-check").className);
 console.log("  ->", d.getElementById("self-check").textContent.trim().slice(0, 100));
 
+// Regression: each day block must be labelled against the READER's date. The
+// page once said "Tomorrow" above a forecast for the day already in progress,
+// and did so for 23 hours out of every 24.
+const pending = JSON.parse(bundle).ledger.filter((r) => r.observed_rain === null);
+const days = [...new Set(pending.map((r) => r.target_date))].sort();
+const midnight = new Date(); midnight.setHours(0, 0, 0, 0);
+const expected = {
+  past: ["Awaiting verification", "In attesa di verifica"],
+  today: ["Today", "Oggi"],
+  tomorrow: ["Tomorrow", "Domani"]
+};
+const headings = [...d.querySelectorAll(".day-heading")];
+console.log(`blocchi giornalieri  : ${headings.length} (attesi ${days.length})`);
+if (headings.length !== days.length) errors.push("numero di blocchi errato");
+days.forEach((target, i) => {
+  const offset = Math.round((new Date(`${target}T00:00:00`) - midnight) / 86400000);
+  const when = offset <= -1 ? "past" : offset === 0 ? "today" : "tomorrow";
+  const got = headings[i].textContent.trim();
+  const ok = expected[when].some((w) => got.startsWith(w));
+  console.log(`  ${target} (${offset >= 0 ? "+" : ""}${offset}g)  "${got}"  ${ok ? "ok" : "SBAGLIATO"}`);
+  if (!ok) errors.push(`blocco ${target}: atteso ${expected[when].join("/")}`);
+});
+
 const before = d.querySelector("h1").textContent;
 d.getElementById("lang-toggle").dispatchEvent(new window.Event("click"));
 await new Promise((r) => setTimeout(r, 200));
