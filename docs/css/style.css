@@ -228,3 +228,17 @@ a { color: var(--accent); }
 .om-line { margin: 9px 0 0; }
 #cut-table tr.best td, #cut-table tr.best th { font-weight: 600; color: var(--positive); }
 #cut-table tr.default td, #cut-table tr.default th { color: var(--muted); }
+
+/* --- record split by model version --- */
+.model-block + .model-block { margin-top: 20px; }
+.model-heading { font-size: 0.85rem; margin: 0 0 8px; font-weight: 600; }
+.model-heading code { font-size: 0.95em; color: var(--text); }
+.model-heading .subtle { font-weight: 400; margin-left: 6px; }
+.rung.absent .rung-note {
+  flex: 1;
+  color: var(--muted);
+  font-style: italic;
+  font-size: 0.72rem;
+}
+#wrong-table td.good { color: var(--positive); }
+#wrong-table td.bad { color: var(--negative); }

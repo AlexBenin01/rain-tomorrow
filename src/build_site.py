@@ -78,12 +78,20 @@ def build() -> dict:
         else []
     )
 
+    transitions_path = ROOT / "reports" / "transitions.json"
+    transitions = (
+        json.loads(transitions_path.read_text(encoding="utf-8"))
+        if transitions_path.is_file()
+        else {}
+    )
+
     records = ledger.load()
     return {
         "generated_at": max((r["issued_at"] for r in records), default=None),
         "cities": cities,
         "ledger": records,
         "stationarity": stationarity,
+        "transitions": transitions,
     }
 
 

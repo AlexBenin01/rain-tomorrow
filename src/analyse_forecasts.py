@@ -13,6 +13,7 @@ these numbers. Standard library only.
     python src/analyse_forecasts.py --location vicenza
 """
 import argparse
+import json
 import statistics as st
 import sys
 from datetime import date
@@ -86,6 +87,46 @@ def analyse(location_key: str, verbose: bool = True) -> dict:
     bss = metrics.brier_skill_score(probs, obs, clim)
     decomposition = metrics.brier_decomposition(probs, obs)
 
+    # Does the forecast echo today or anticipate tomorrow? If it correlates more
+    # with today's rain than with tomorrow's, it is largely reporting the present.
+    def _corr(xs, ys):
+        mx, my = st.mean(xs), st.mean(ys)
+        num = sum((a - mx) * (b - my) for a, b in zip(xs, ys))
+        den = (sum((a - mx) ** 2 for a in xs) * sum((b - my) ** 2 for b in ys)) ** 0.5
+        return num / den if den else 0.0
+
+    today_rain = [d["rained_today"] for d in days]
+    corr_today = _corr(probs, today_rain)
+    corr_tomorrow = _corr(probs, obs)
+
+    # Split the days into those where the weather stayed as it was and those
+    # where it changed. A forecast is only worth anything on the second kind.
+    persist = [d for d in days if d["rained_today"] == d["observed"]]
+    change = [d for d in days if d["rained_today"] != d["observed"]]
+
+    def _scores(subset):
+        if not subset:
+            return None
+        p = [d["prob"] for d in subset]
+        o = [d["observed"] for d in subset]
+        c = [d["climatology"] for d in subset]
+        return {
+            "n": len(subset),
+            "brier": metrics.brier_score(p, o),
+            "brier_climatology": metrics.brier_score(c, o),
+            "bss": metrics.brier_skill_score(p, o, c),
+        }
+
+    # Calibrated persistence, fitted on the test set itself: the harshest
+    # possible version of the baseline the model has to beat.
+    wet_rate = st.mean([d["observed"] for d in days if d["rained_today"]])
+    dry_rate = st.mean([d["observed"] for d in days if not d["rained_today"]])
+    persistence_probs = [wet_rate if d["rained_today"] else dry_rate for d in days]
+    change_idx = [i for i, d in enumerate(days) if d["rained_today"] != d["observed"]]
+    brier_persistence_change = metrics.brier_score(
+        [persistence_probs[i] for i in change_idx], [obs[i] for i in change_idx]
+    )
+
     if verbose:
         print(f"\n{'=' * 66}\n{name}  —  {len(days)} held-out days\n{'=' * 66}")
 
@@ -142,6 +183,17 @@ def analyse(location_key: str, verbose: bool = True) -> dict:
         for d in misses:
             print(f"    {d['target']}  said {d['prob']:.0%}  ->  {d['observed_mm']:.1f} mm")
 
+        print("")
+        print("DOES IT PREDICT TOMORROW, OR REPORT TODAY?")
+        print(f"  correlation with today's rain     {corr_today:.3f}")
+        print(f"  correlation with tomorrow's rain  {corr_tomorrow:.3f}")
+        p_scores, c_scores = _scores(persist), _scores(change)
+        print(f"  days the weather stayed put  {p_scores['n']:>4}  "
+              f"Brier {p_scores['brier']:.4f}  BSS {p_scores['bss']:+.3f}")
+        print(f"  days the weather changed     {c_scores['n']:>4}  "
+              f"Brier {c_scores['brier']:.4f}  BSS {c_scores['bss']:+.3f}")
+        print(f"  calibrated persistence, on those changing days: "
+              f"{brier_persistence_change:.4f}")
         print("\nSKILL BY SEASON")
         print(f"  {'season':<9}{'n':>5}{'base':>8}{'Brier':>9}{'BSS':>9}{'says':>8}")
         for season in SEASON_ORDER:
@@ -168,6 +220,11 @@ def analyse(location_key: str, verbose: bool = True) -> dict:
     misses = [d for d in days if d["prob"] < 0.5 and d["observed"]]
 
     detail = {
+        "corr_today": corr_today,
+        "corr_tomorrow": corr_tomorrow,
+        "persist": _scores(persist),
+        "change": _scores(change),
+        "change_persistence_brier": brier_persistence_change,
         "clim_sharpness": st.pstdev(clim),
         "confident_dry": sum(1 for p in probs if p <= 0.15) / len(probs),
         "max": max(probs), "min": min(probs),
@@ -192,27 +249,55 @@ def analyse(location_key: str, verbose: bool = True) -> dict:
 
 
 def live_record() -> None:
-    records = ledger.verified(ledger.load())
-    pending = ledger.pending(ledger.load())
-    print(f"\n{'=' * 66}\nTHE LIVE RECORD\n{'=' * 66}")
-    print(f"  issued {len(records) + len(pending)}, verified {len(records)}, "
-          f"awaiting outcome {len(pending)}")
+    """The public ledger, segmented by which model issued each forecast.
+
+    Never pooled. The ledger spans a model change, and averaging two different
+    models into one score would hide exactly what the record exists to show.
+    Every row carries `model_version` for this reason.
+    """
+    records = ledger.load()
+    rule = "=" * 66
+    print("")
+    print(rule)
+    print("THE LIVE RECORD")
+    print(rule)
+
+    by_model: dict[str, list[dict]] = {}
+    for record in records:
+        by_model.setdefault(record["model_version"], []).append(record)
+
     if not records:
-        print("  Nothing verified yet. Every number above comes from the held-out")
-        print("  test set instead; the live record is what will confirm or refute it.")
+        print("  Nothing issued yet.")
         return
-    probs = [r["our_prob"] for r in records]
-    obs = [1.0 if r["observed_rain"] else 0.0 for r in records]
-    clim = [r["climatology"] for r in records]
-    om = [(r["om_rain"], r["observed_rain"]) for r in records if r["om_rain"] is not None]
-    print(f"  our Brier {metrics.brier_score(probs, obs):.4f}   "
-          f"BSS {metrics.brier_skill_score(probs, obs, clim):+.3f}")
-    correct = sum(1 for r in records if r["our_rain"] == r["observed_rain"])
-    print(f"  we called {correct}/{len(records)} right")
-    if om:
-        print(f"  Open-Meteo called {sum(1 for a, b in om if a == b)}/{len(om)} right")
-    if len(records) < 30:
-        print(f"  {len(records)} samples is far too few to mean anything yet.")
+
+    for version in sorted(by_model):
+        group = by_model[version]
+        done = [r for r in group if r["observed_rain"] is not None]
+        print("")
+        print(f"  {version}   {len(group)} issued, {len(done)} verified")
+        if not done:
+            print("    nothing scored yet")
+            continue
+
+        probs = [r["our_prob"] for r in done]
+        obs = [1.0 if r["observed_rain"] else 0.0 for r in done]
+        clim = [r["climatology"] for r in done]
+        correct = sum(1 for r in done if r["our_rain"] == r["observed_rain"])
+        bss = metrics.brier_skill_score(probs, obs, clim)
+
+        print(f"    Brier {metrics.brier_score(probs, obs):.4f}   "
+              f"BSS vs climatology {'—' if bss is None else format(bss, '+.3f')}")
+        print(f"    called {correct}/{len(done)} right at the 0.5 cut-off")
+
+        benchmark = [r for r in done if r["om_rain"] is not None]
+        if benchmark:
+            om_correct = sum(1 for r in benchmark if r["om_rain"] == r["observed_rain"])
+            print(f"    Open-Meteo called {om_correct}/{len(benchmark)} right")
+
+        rained = sum(obs)
+        print(f"    {rained:.0f} of {len(done)} forecast days actually rained")
+        if len(done) < 30:
+            print(f"    {len(done)} samples: too few for any of this to mean anything")
 
 
 def main() -> int:
@@ -339,6 +424,60 @@ def write_report(summaries: list[dict], details: dict) -> Path:
         "",
         "---",
         "",
+        "## It reports today more than it predicts tomorrow",
+        "",
+        "The forecast correlates more strongly with the rain that has already fallen than with the",
+        "rain being predicted:",
+        "",
+        "| town | correlation with today | correlation with tomorrow |",
+        "|---|---|---|",
+    ]
+    for s in summaries:
+        d = details[s["key"]]
+        lines.append(f"| {s['name']} | {d['corr_today']:.3f} | {d['corr_tomorrow']:.3f} |")
+
+    lines += [
+        "",
+        "Splitting the test set by whether the weather changed makes the consequence concrete. A day",
+        "is a *transition* when tomorrow differs from today: rain starting, or rain stopping.",
+        "",
+        "| town | days unchanged | Brier | days changed | Brier | BSS on changed days |",
+        "|---|---|---|---|---|---|",
+    ]
+    for s in summaries:
+        d = details[s["key"]]
+        a, b = d["persist"], d["change"]
+        lines.append(
+            f"| {s['name']} | {a['n']} | {a['brier']:.4f} | {b['n']} | {b['brier']:.4f} | "
+            f"{b['bss']:+.3f} |"
+        )
+
+    mean_change_bss = st.mean(details[s["key"]]["change"]["bss"] for s in summaries)
+    mean_change = st.mean(details[s["key"]]["change"]["brier"] for s in summaries)
+    mean_persistence = st.mean(details[s["key"]]["change_persistence_brier"] for s in summaries)
+    share = st.mean(
+        details[s["key"]]["change"]["n"]
+        / (details[s["key"]]["change"]["n"] + details[s["key"]]["persist"]["n"])
+        for s in summaries
+    )
+    lines += [
+        "",
+        f"Transitions are {share:.0%} of all days. On them the Brier score is roughly four times",
+        f"worse than on days that stay put, and the skill score against climatology is",
+        f"{mean_change_bss:+.3f}: on the days when the weather actually changes, quoting the",
+        "seasonal average would do better than reading this model.",
+        "",
+        f"It is not merely echoing persistence, though. On those same changing days calibrated",
+        f"persistence scores {mean_persistence:.4f} against the model's {mean_change:.4f}, so the",
+        f"model recovers {mean_persistence - mean_change:.3f} of Brier that pure persistence loses.",
+        "It adds real information about change. Not enough of it.",
+        "",
+        "The headline skill of about +0.26 therefore comes almost entirely from being right on the",
+        f"{1 - share:.0%} of days when nothing changes. Anyone using these numbers should know which",
+        "part of the year they are buying.",
+        "",
+        "---",
+        "",
         "## Where it goes wrong",
         "",
         "| town | loudest false alarm | worst miss |",
@@ -386,6 +525,50 @@ def write_report(summaries: list[dict], details: dict) -> Path:
         "is itself thin. Worth watching in the live record rather than concluding from here.",
         "",
     ]
+    # The page quotes these figures in prose. Emitting them as data lets
+    # scripts/check_prose.py verify the prose against them, so the two cannot
+    # drift apart the next time the model is retrained.
+    share = st.mean(
+        details[s["key"]]["change"]["n"]
+        / (details[s["key"]]["change"]["n"] + details[s["key"]]["persist"]["n"])
+        for s in summaries
+    )
+    (ROOT / "reports" / "transitions.json").write_text(
+        json.dumps(
+            {
+                "corr_today": round(st.mean(details[s["key"]]["corr_today"] for s in summaries), 3),
+                "corr_tomorrow": round(
+                    st.mean(details[s["key"]]["corr_tomorrow"] for s in summaries), 3
+                ),
+                "transition_share": round(share, 3),
+                "brier_persist": round(
+                    st.mean(details[s["key"]]["persist"]["brier"] for s in summaries), 4
+                ),
+                "brier_change": round(
+                    st.mean(details[s["key"]]["change"]["brier"] for s in summaries), 4
+                ),
+                "bss_change": round(
+                    st.mean(details[s["key"]]["change"]["bss"] for s in summaries), 3
+                ),
+                "brier_change_persistence": round(
+                    st.mean(details[s["key"]]["change_persistence_brier"] for s in summaries), 4
+                ),
+                "by_location": [
+                    {
+                        "name": s["name"],
+                        "corr_today": round(details[s["key"]]["corr_today"], 3),
+                        "corr_tomorrow": round(details[s["key"]]["corr_tomorrow"], 3),
+                        "persist": details[s["key"]]["persist"],
+                        "change": details[s["key"]]["change"],
+                    }
+                    for s in summaries
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
     out = ROOT / "reports" / "FORECAST_ANALYSIS.md"
     out.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return out

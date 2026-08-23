@@ -219,6 +219,46 @@ zero, and it belongs in the record rather than in a footnote.
 
 ---
 
+## 2c. Why the five towns are not fed to each other
+
+With five locations available, the obvious next step is to give each model the others' conditions.
+The signal is real. Today's rain at Bassano predicts tomorrow's rain at **every** other town better
+than that town's own rain does:
+
+| today at ↓, tomorrow at → | Bassano | Conegliano | Vicenza | Padova | Venezia |
+|---|---|---|---|---|---|
+| **Bassano** | 0.359 | 0.363 | 0.353 | 0.368 | 0.379 |
+| Conegliano | 0.350 | 0.350 | 0.345 | 0.364 | 0.364 |
+| Vicenza | 0.334 | 0.330 | 0.342 | 0.365 | 0.370 |
+| Padova | 0.304 | 0.311 | 0.324 | 0.350 | 0.365 |
+| Venezia | 0.288 | 0.289 | 0.295 | 0.329 | 0.359 |
+
+Reading down the diagonal against the Bassano row: 0.353 beats Vicenza's own 0.342, 0.368 beats
+Padova's 0.350, 0.379 beats Venezia's 0.359. The foothills see weather arrive first, which is what
+orography and the prevailing flow would suggest.
+
+It is not used, and the reason is in the same data. Rainfall at these towns correlates **0.77 to
+0.89** on the same day:
+
+```
+bassano    vs conegliano  0.875     conegliano vs padova      0.810
+bassano    vs vicenza     0.888     conegliano vs venezia     0.824
+bassano    vs padova      0.838     vicenza    vs padova      0.884
+bassano    vs venezia     0.784     vicenza    vs venezia     0.786
+conegliano vs vicenza     0.770     padova     vs venezia     0.888
+```
+
+Adding every town's predictors to every model would mean roughly 85 heavily collinear features on
+2 900 training samples. That is the configuration in which extra capacity buys nothing and costs
+generalisation. A handful of aggregates, upstream rain and regional mean pressure, would be the
+disciplined version of the idea and remains open.
+
+The same correlation explains something about the error analysis: the worst days recur on the same
+dates across towns. Those are not five independent mistakes but one synoptic situation over a region
+80 km across, so pooling the five towns narrows the uncertainty far less than the row count suggests.
+
+---
+
 ## 3. Licence
 
 Weather data from Open-Meteo, **CC BY 4.0**, derived from the **ERA5 / ERA5-Land** reanalysis of the

@@ -71,6 +71,46 @@ about tomorrow.
 
 ---
 
+## It reports today more than it predicts tomorrow
+
+The forecast correlates more strongly with the rain that has already fallen than with the
+rain being predicted:
+
+| town | correlation with today | correlation with tomorrow |
+|---|---|---|
+| Bassano del Grappa | 0.726 | 0.505 |
+| Conegliano | 0.673 | 0.507 |
+| Vicenza | 0.666 | 0.519 |
+| Padova | 0.660 | 0.527 |
+| Venezia | 0.689 | 0.511 |
+
+Splitting the test set by whether the weather changed makes the consequence concrete. A day
+is a *transition* when tomorrow differs from today: rain starting, or rain stopping.
+
+| town | days unchanged | Brier | days changed | Brier | BSS on changed days |
+|---|---|---|---|---|---|
+| Bassano del Grappa | 424 | 0.0809 | 164 | 0.3776 | -0.361 |
+| Conegliano | 416 | 0.0784 | 172 | 0.3552 | -0.266 |
+| Vicenza | 426 | 0.0787 | 162 | 0.3535 | -0.227 |
+| Padova | 440 | 0.0784 | 148 | 0.3648 | -0.260 |
+| Venezia | 418 | 0.0655 | 170 | 0.3770 | -0.257 |
+
+Transitions are 28% of all days. On them the Brier score is roughly four times
+worse than on days that stay put, and the skill score against climatology is
+-0.274: on the days when the weather actually changes, quoting the
+seasonal average would do better than reading this model.
+
+It is not merely echoing persistence, though. On those same changing days calibrated
+persistence scores 0.4697 against the model's 0.3656, so the
+model recovers 0.104 of Brier that pure persistence loses.
+It adds real information about change. Not enough of it.
+
+The headline skill of about +0.26 therefore comes almost entirely from being right on the
+72% of days when nothing changes. Anyone using these numbers should know which
+part of the year they are buying.
+
+---
+
 ## Where it goes wrong
 
 | town | loudest false alarm | worst miss |

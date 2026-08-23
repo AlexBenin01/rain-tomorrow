@@ -35,6 +35,7 @@ function render() {
   renderBaselines();
   renderCut();
   renderReliability();
+  renderWhenWrong();
   renderStationarity();
   renderPhysics();
   renderLimits();
@@ -123,46 +124,80 @@ function renderLive() {
 // The public record
 // --------------------------------------------------------------------------
 function renderRecord() {
-  const verified = bundle.ledger.filter((r) => r.observed_rain !== null);
   const box = $("record-body");
+  const stats = $("record-stats");
   box.innerHTML = "";
+  stats.innerHTML = "";
 
-  if (!verified.length) {
-    box.innerHTML = `<p class="note">${t("record.waiting")}</p>`;
-    $("record-stats").innerHTML = statTiles([
-      [t("record.issued"), String(bundle.ledger.length)],
-      [t("record.verified"), "0"]
-    ]);
+  // Grouped by model version, never pooled. The ledger spans a model change and
+  // one averaged number would hide it.
+  const groups = new Map();
+  for (const record of bundle.ledger) {
+    if (!groups.has(record.model_version)) groups.set(record.model_version, []);
+    groups.get(record.model_version).push(record);
+  }
+  if (!groups.size) {
+    box.innerHTML = `<p class="muted">${t("live.empty")}</p>`;
     return;
   }
 
-  const outcomes = verified.map((r) => (r.observed_rain ? 1 : 0));
-  const ours = verified.map((r) => r.our_prob);
-  const clim = verified.map((r) => r.climatology);
-  const correct = verified.filter((r) => r.our_rain === r.observed_rain).length;
-  const brier = mean(ours.map((p, i) => (p - outcomes[i]) ** 2));
-  const brierClim = mean(clim.map((p, i) => (p - outcomes[i]) ** 2));
-  const bss = brierClim > 0 ? 1 - brier / brierClim : null;
-  const dryRate = 1 - mean(outcomes);
+  let anyVerified = false;
+  for (const version of [...groups.keys()].sort()) {
+    const group = groups.get(version);
+    const done = group.filter((r) => r.observed_rain !== null);
+    const block = document.createElement("div");
+    block.className = "model-block";
+    block.innerHTML = `<h3 class="model-heading"><code>${version}</code>
+      <span class="subtle">${group.length} ${t("record.issued")},
+      ${done.length} ${t("record.verified")}</span></h3>`;
 
-  $("record-stats").innerHTML = statTiles([
-    [t("record.issued"), String(bundle.ledger.length)],
-    [t("record.verified"), String(verified.length)],
-    [t("record.correct"), String(correct)],
-    [t("record.wrong"), String(verified.length - correct)],
-    [t("record.brier"), brier.toFixed(3)],
-    [t("record.bss"), bss === null ? "—" : signed(bss)]
-  ]);
+    if (!done.length) {
+      block.innerHTML += `<p class="muted small">${t("record.pending")}</p>`;
+      box.appendChild(block);
+      continue;
+    }
+    anyVerified = true;
 
-  box.innerHTML =
-    `<p class="note">${t("record.accuracyTrap", { pct: pct(dryRate) })}</p>` +
-    (verified.length < 30
-      ? `<p class="warning">${t("record.thin", { n: verified.length })}</p>`
-      : "");
+    const outcomes = done.map((r) => (r.observed_rain ? 1 : 0));
+    const ours = done.map((r) => r.our_prob);
+    const clim = done.map((r) => r.climatology);
+    const correct = done.filter((r) => r.our_rain === r.observed_rain).length;
+    const brier = mean(ours.map((p, i) => (p - outcomes[i]) ** 2));
+    const brierClim = mean(clim.map((p, i) => (p - outcomes[i]) ** 2));
+    const bss = brierClim > 0 ? 1 - brier / brierClim : null;
+    const benchmark = done.filter((r) => r.om_rain !== null);
+    const omCorrect = benchmark.filter((r) => r.om_rain === r.observed_rain).length;
+    const rained = outcomes.reduce((a, b) => a + b, 0);
+
+    const tiles = [
+      [t("record.correct"), String(correct)],
+      [t("record.wrong"), String(done.length - correct)],
+      [t("record.brier"), brier.toFixed(3)],
+      [t("record.bss"), bss === null ? "—" : signed(bss)]
+    ];
+    if (benchmark.length) {
+      tiles.push([t("record.them"), `${omCorrect}/${benchmark.length}`]);
+    }
+    block.innerHTML += `<dl class="tiles">${statTiles(tiles)}</dl>`;
+    block.innerHTML +=
+      `<p class="muted small">${rained}/${done.length} ${t("record.rained")}.` +
+      (done.length < 30 ? ` ${t("record.thin", { n: done.length })}` : "") + "</p>";
+    box.appendChild(block);
+  }
+
+  const notes = [`<p class="muted small">${t("record.modelNote")}</p>`];
+  if (anyVerified) {
+    const verified = bundle.ledger.filter((r) => r.observed_rain !== null);
+    const dry = 1 - mean(verified.map((r) => (r.observed_rain ? 1 : 0)));
+    notes.unshift(`<p class="note">${t("record.accuracyTrap", { pct: pct(dry) })}</p>`);
+  } else {
+    notes.unshift(`<p class="note">${t("record.waiting")}</p>`);
+  }
+  box.insertAdjacentHTML("beforeend", notes.join(""));
 }
 
-// A probability only means something next to the rate it is being compared with.
-// "45%" reads as "probably not"; "45%, one and a half times the August normal"
+// A probability only means something next to the rate it is compared with.
+// "45%" reads as "probably not". "45%, one and a half times the August normal"
 // reads as what it is.
 function versusNormal(record, target) {
   const month = new Date(`${target}T12:00:00Z`).toLocaleDateString(
@@ -171,18 +206,29 @@ function versusNormal(record, target) {
   const clim = pct(record.climatology);
   const ratio = record.our_prob / record.climatology;
   if (ratio > 0.85 && ratio < 1.15) return t("live.atNormal", { month, clim });
-  return t("live.vsNormal", { ratio: ratio.toFixed(1).replace(".", lang === "it" ? "," : "."),
-                              month, clim });
+  return t("live.vsNormal", {
+    ratio: ratio.toFixed(1).replace(".", lang === "it" ? "," : "."),
+    month,
+    clim
+  });
 }
 
-// The intensity ladder. Rows issued before the thresholds existed carry only the
-// headline figure, and are left showing just that rather than being hidden.
+// The intensity ladder. Rows issued before the thresholds existed carry only
+// the headline figure and show just that.
 function ladderRows(city, record) {
   if (!record.our_probs) return "";
   const shipped = shippedThresholds(city);
-  const rows = shipped.map((mm) => {
-    const p = record.our_probs[String(mm)];
-    if (p === undefined) return "";
+  // Every threshold that was trained, including those that did not earn a
+  // place. Dropping a row silently leaves the reader wondering, or not.
+  const all = Object.keys(city.thresholds).map(Number).sort((a, b) => a - b);
+  const rows = all.map((mm) => {
+    const p = shipped.includes(mm) ? record.our_probs[String(mm)] : undefined;
+    if (p === undefined) {
+      return `<div class="rung absent">
+          <span class="rung-label">${t("live.atLeast")} ${mm} mm</span>
+          <span class="rung-note">${t("live.notShipped")}</span>
+        </div>`;
+    }
     return `<div class="rung">
         <span class="rung-label">${t("live.atLeast")} ${mm} mm</span>
         <span class="rung-bar"><i style="width:${Math.max(2, p * 100)}%"></i></span>
@@ -251,6 +297,29 @@ function renderReliability() {
 // --------------------------------------------------------------------------
 // Stationarity
 // --------------------------------------------------------------------------
+function renderWhenWrong() {
+  const data = bundle.transitions;
+  const table = $("wrong-table");
+  if (!data || !data.by_location) {
+    table.innerHTML = "";
+    return;
+  }
+  table.innerHTML =
+    `<thead><tr><th></th><th>${t("reliability.predicted")} / ${t("wrong.kind")}</th>` +
+    `<th>${t("wrong.persist")}</th><th>${t("wrong.change")}</th>` +
+    `<th>${t("wrong.share")}</th></tr></thead><tbody>` +
+    data.by_location.map((row) => {
+      const total = row.persist.n + row.change.n;
+      return `<tr>
+        <th scope="row">${row.name}</th>
+        <td class="muted">${row.corr_today.toFixed(2)} / ${row.corr_tomorrow.toFixed(2)}</td>
+        <td class="good">${row.persist.brier.toFixed(3)}</td>
+        <td class="bad">${row.change.brier.toFixed(3)}</td>
+        <td class="muted">${pct(row.change.n / total)}</td>
+      </tr>`;
+    }).join("") + "</tbody>";
+}
+
 function renderStationarity() {
   if (!bundle.stationarity.length) return;
   const rows = bundle.stationarity

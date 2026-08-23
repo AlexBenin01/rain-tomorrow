@@ -1,0 +1,96 @@
+{
+  "corr_today": 0.683,
+  "corr_tomorrow": 0.514,
+  "transition_share": 0.278,
+  "brier_persist": 0.0764,
+  "brier_change": 0.3656,
+  "bss_change": -0.274,
+  "brier_change_persistence": 0.4697,
+  "by_location": [
+    {
+      "name": "Bassano del Grappa",
+      "corr_today": 0.726,
+      "corr_tomorrow": 0.505,
+      "persist": {
+        "n": 424,
+        "brier": 0.08087293894218633,
+        "brier_climatology": 0.19823244214483843,
+        "bss": 0.5920297501904528
+      },
+      "change": {
+        "n": 164,
+        "brier": 0.3776119024636104,
+        "brier_climatology": 0.27754713965229455,
+        "bss": -0.36053249526071496
+      }
+    },
+    {
+      "name": "Conegliano",
+      "corr_today": 0.673,
+      "corr_tomorrow": 0.507,
+      "persist": {
+        "n": 416,
+        "brier": 0.07843855601647186,
+        "brier_climatology": 0.18213484093576066,
+        "bss": 0.5693379936893167
+      },
+      "change": {
+        "n": 172,
+        "brier": 0.3551745965060884,
+        "brier_climatology": 0.2804444797646863,
+        "bss": -0.26647027177752336
+      }
+    },
+    {
+      "name": "Vicenza",
+      "corr_today": 0.666,
+      "corr_tomorrow": 0.519,
+      "persist": {
+        "n": 426,
+        "brier": 0.0787132919631,
+        "brier_climatology": 0.18457474204339094,
+        "bss": 0.5735424517370009
+      },
+      "change": {
+        "n": 162,
+        "brier": 0.35353174248441516,
+        "brier_climatology": 0.2880333939094603,
+        "bss": -0.22739845434569106
+      }
+    },
+    {
+      "name": "Padova",
+      "corr_today": 0.66,
+      "corr_tomorrow": 0.527,
+      "persist": {
+        "n": 440,
+        "brier": 0.07837863725046637,
+        "brier_climatology": 0.18076433815058476,
+        "bss": 0.566404313747032
+      },
+      "change": {
+        "n": 148,
+        "brier": 0.3647812402826887,
+        "brier_climatology": 0.2896061198817971,
+        "bss": -0.259577112636896
+      }
+    },
+    {
+      "name": "Venezia",
+      "corr_today": 0.689,
+      "corr_tomorrow": 0.511,
+      "persist": {
+        "n": 418,
+        "brier": 0.06554639020523058,
+        "brier_climatology": 0.1748767746162673,
+        "bss": 0.6251852748939404
+      },
+      "change": {
+        "n": 170,
+        "brier": 0.377035609417986,
+        "brier_climatology": 0.2999351793343938,
+        "bss": -0.25705697562617
+      }
+    }
+  ]
+}
