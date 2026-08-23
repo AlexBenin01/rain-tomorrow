@@ -217,6 +217,11 @@ The same model drives the weather in [AgroAgent](https://github.com/AlexBenin01/
 simulated vineyard supervised by an LLM agent, where the forecast decides whether to postpone a
 fungicide treatment. This repository is where it is trained and verified.
 
+`models/conegliano.json` is consumed there **verbatim**, the whole file, unmodified: the vineyard
+sits on the same ERA5 grid node. It reads the 1 mm threshold and ignores the other three. Anyone
+changing the artefact schema has a downstream consumer to consider, and it will notice: AgroAgent
+recomputes the reference vectors on startup and refuses to boot if they do not reproduce.
+
 ---
 
 ## Licences
