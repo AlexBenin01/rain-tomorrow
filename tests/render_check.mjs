@@ -15,11 +15,20 @@ import { JSDOM } from "jsdom";
 import { readFileSync } from "fs";
 const html = readFileSync("/docs/index.html", "utf8");
 const bundle = readFileSync("/docs/data/bundle.json", "utf8");
+const archive = readFileSync("/docs/data/ledger.json", "utf8");
 const dom = new JSDOM(html, { url: "http://localhost/", pretendToBeVisual: true });
 const { window } = dom;
 global.window = window; global.document = window.document;
 global.navigator = window.navigator; global.localStorage = window.localStorage;
-global.fetch = async () => ({ ok: true, status: 200, json: async () => JSON.parse(bundle) });
+// Two files, and the stub must tell them apart: the page renders the record
+// from the archive, so a stub that answered everything with the bundle would
+// pass while the real page showed an error.
+const served = { "data/bundle.json": bundle, "data/ledger.json": archive };
+global.fetch = async (url) => {
+  const body = served[String(url)];
+  if (!body) return { ok: false, status: 404, json: async () => null };
+  return { ok: true, status: 200, json: async () => JSON.parse(body) };
+};
 const errors = [];
 window.addEventListener("error", (e) => errors.push(e.message));
 process.on("unhandledRejection", (e) => errors.push(String(e)));

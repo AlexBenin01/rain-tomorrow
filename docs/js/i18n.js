@@ -58,6 +58,10 @@ export const STRINGS = {
     "record.them": "Open-Meteo, same days",
     "record.rained": "of those days rained",
     "record.pending": "nothing scored yet",
+    "record.loading": "Loading the full record.",
+    "record.unavailable":
+      "The full record did not load. A reload usually settles it, and the same rows are " +
+      "in forecasts.jsonl in the repository.",
     "record.modelNote":
       "Scores are kept separate per model version. The record spans a model change, and " +
       "averaging two models into one number would hide what the record is for.",
@@ -254,6 +258,10 @@ export const STRINGS = {
     "record.them": "Open-Meteo, stessi giorni",
     "record.rained": "di quei giorni ha piovuto",
     "record.pending": "ancora nessuna valutata",
+    "record.loading": "Caricamento del registro completo.",
+    "record.unavailable":
+      "Il registro completo non si è caricato. Di solito basta ricaricare la pagina, e le " +
+      "stesse righe sono in forecasts.jsonl nel repository.",
     "record.modelNote":
       "I punteggi restano separati per versione del modello. Il registro attraversa un " +
       "cambio di modello, e mediare due modelli in un numero solo nasconderebbe proprio " +

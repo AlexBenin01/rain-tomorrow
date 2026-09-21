@@ -1,10 +1,15 @@
-// Page assembly. Loads one JSON bundle, renders everything, makes no other
-// network request — the model runs here, in the reader's browser.
+// Page assembly. Loads the bundle, renders everything, then fetches the full
+// record for the one section that reads it. No weather service is called: the
+// model runs here, in the reader's browser.
 import { initialLanguage, rememberLanguage, translator, STRINGS } from "./i18n.js";
 import { selfCheck, predictLadder, shippedThresholds } from "./model.js";
 import { divergingBars, reliabilityChart, cityStrip, probabilityMeter } from "./charts.js";
 
 let bundle = null;
+// The whole ledger, fetched after the first paint. Null while in flight, and
+// still null if it failed: the two states read differently to the reader.
+let archive = null;
+let archiveFailed = false;
 let lang = initialLanguage();
 let t = translator(lang);
 
@@ -26,6 +31,23 @@ async function main() {
 
   document.documentElement.lang = lang;
   render();
+  loadRecord();
+}
+
+// The record grows by five rows every evening, so it travels outside the bundle
+// and the first load stays the same weight next year as today. Not awaited: the
+// forecasts are already on screen, and the section that needs this one is far
+// enough down the page.
+async function loadRecord() {
+  try {
+    const response = await fetch("data/ledger.json");
+    if (!response.ok) throw new Error(`ledger.json: HTTP ${response.status}`);
+    archive = await response.json();
+  } catch (error) {
+    console.error(error);
+    archiveFailed = true;
+  }
+  renderRecord();
 }
 
 function render() {
@@ -129,10 +151,19 @@ function renderRecord() {
   box.innerHTML = "";
   stats.innerHTML = "";
 
+  // Counts and scores are about the whole record or they are about nothing. The
+  // recent rows in the bundle would render a smaller number under the same
+  // heading, which is worse than an empty section.
+  if (archive === null) {
+    box.innerHTML =
+      `<p class="muted">${t(archiveFailed ? "record.unavailable" : "record.loading")}</p>`;
+    return;
+  }
+
   // Grouped by model version, never pooled. The ledger spans a model change and
   // one averaged number would hide it.
   const groups = new Map();
-  for (const record of bundle.ledger) {
+  for (const record of archive) {
     if (!groups.has(record.model_version)) groups.set(record.model_version, []);
     groups.get(record.model_version).push(record);
   }
@@ -187,7 +218,7 @@ function renderRecord() {
 
   const notes = [`<p class="muted small">${t("record.modelNote")}</p>`];
   if (anyVerified) {
-    const verified = bundle.ledger.filter((r) => r.observed_rain !== null);
+    const verified = archive.filter((r) => r.observed_rain !== null);
     const dry = 1 - mean(verified.map((r) => (r.observed_rain ? 1 : 0)));
     notes.unshift(`<p class="note">${t("record.accuracyTrap", { pct: pct(dry) })}</p>`);
   } else {

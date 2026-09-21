@@ -170,6 +170,13 @@ Scores are reported per `model_version` and never pooled. The ledger already spa
 The run happens late in the evening because forecasting tomorrow needs today essentially complete. A
 morning run would be forecasting today instead. It needs no `pip install`.
 
+The page does not read that file. `src/build_site.py` publishes two: `docs/data/bundle.json`, which
+carries the models, the evidence and the days still awaiting their outcome, and
+`docs/data/ledger.json`, the whole record, fetched only once the forecasts are already on screen.
+The first load is held under a 200 KB budget that the build enforces, and it no longer moves as the
+record grows: between 6 and 20 September 2026 it did, the budget failed the nightly job, and fifteen
+days of forecasts were never committed.
+
 ---
 
 ## Reproducing it
